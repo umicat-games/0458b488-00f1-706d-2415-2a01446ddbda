@@ -56,10 +56,20 @@ interface BulletState {
   owner: 'player' | 'enemy';
 }
 
-// ─── Stage map ────────────────────────────────────────────────────────────────
-// Each entry is a 2×2 block of tiles; 13×13 blocks = 26×26 tiles
-// 0=empty 1=brick 2=steel 3=eagle
-const BLOCKS: number[][] = [
+// ─── Stage configs ────────────────────────────────────────────────────────────
+interface StageConfig {
+  blocks: number[][];
+  totalEnemies: number;
+  maxOnScreen: number;
+  spawnInterval: number;   // ms between spawns
+  enemySpeedMult: number;  // multiplier on base ENEMY_SPEED
+  shootMin: number;        // ms
+  shootMax: number;
+  typeWeights: [number, number, number]; // relative weights for basic/fast/armored
+}
+
+// Stage 1 — standard, brick-heavy, mostly basic tanks
+const BLOCKS_S1: number[][] = [
   [0,0,0,0,0,0,0,0,0,0,0,0,0],
   [0,1,1,0,1,1,0,1,1,0,1,1,0],
   [0,1,1,0,1,1,0,1,1,0,1,1,0],
@@ -75,14 +85,53 @@ const BLOCKS: number[][] = [
   [0,0,0,0,0,1,3,1,0,0,0,0,0],
 ];
 
+// Stage 2 — more steel, open lanes, faster & tougher enemies
+const BLOCKS_S2: number[][] = [
+  [0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [2,0,1,0,2,0,1,0,2,0,1,0,2],
+  [2,0,1,0,2,0,1,0,2,0,1,0,2],
+  [0,0,0,1,0,0,0,0,0,1,0,0,0],
+  [0,2,0,1,0,2,0,2,0,1,0,2,0],
+  [0,2,0,0,2,0,0,0,2,0,0,2,0],
+  [0,0,1,0,0,2,0,2,0,0,1,0,0],
+  [0,0,1,0,0,0,0,0,0,0,1,0,0],
+  [1,0,0,2,0,1,0,1,0,2,0,0,1],
+  [1,0,0,2,0,0,0,0,0,2,0,0,1],
+  [0,2,0,0,1,0,0,0,1,0,0,2,0],
+  [0,0,0,0,0,1,1,1,0,0,0,0,0],
+  [0,0,0,0,0,1,3,1,0,0,0,0,0],
+];
+
+const STAGE_CONFIGS: StageConfig[] = [
+  {
+    blocks: BLOCKS_S1,
+    totalEnemies: 20,
+    maxOnScreen: 4,
+    spawnInterval: 3000,
+    enemySpeedMult: 1.0,
+    shootMin: 1200,
+    shootMax: 3200,
+    typeWeights: [6, 3, 1],
+  },
+  {
+    blocks: BLOCKS_S2,
+    totalEnemies: 20,
+    maxOnScreen: 5,
+    spawnInterval: 2200,
+    enemySpeedMult: 1.2,
+    shootMin: 800,
+    shootMax: 2000,
+    typeWeights: [3, 4, 3],
+  },
+];
+
 // ─── Build 26×26 tile map from 13×13 block map ────────────────────────────────
-function buildMap(): number[][] {
+function buildMap(blocks: number[][]): number[][] {
   const m: number[][] = Array.from({ length: ROWS }, () => new Array(COLS).fill(TE));
   for (let br = 0; br < 13; br++) {
     for (let bc = 0; bc < 13; bc++) {
-      const v = BLOCKS[br][bc];
+      const v = blocks[br][bc];
       if (!v) continue;
-      // Eagle block → eagle tile only in top-left cell, rest empty
       const fill = v;
       m[br * 2][bc * 2]         = fill;
       m[br * 2][bc * 2 + 1]     = fill;
@@ -115,7 +164,6 @@ export class GameScene extends Phaser.Scene {
   private enemySpawnTimer = 2000;
   private readonly SPAWN_COLS = [0, 12, 24];
   private spawnRoundRobin = 0;
-  private readonly MAX_ON_SCREEN = 4;
 
   // ── Bullets ───────────────────────────────────────────────────────────────
   private bullets: BulletState[] = [];
@@ -134,6 +182,10 @@ export class GameScene extends Phaser.Scene {
   private enemyCountText!: Phaser.GameObjects.Text;
   private score = 0;
 
+  // ── Stage ─────────────────────────────────────────────────────────────────
+  private currentStage = 1;   // 1-based
+  private stageCfg!: StageConfig;
+
   // ── State ─────────────────────────────────────────────────────────────────
   private gameOverFlag = false;
   private stageClearFlag = false;
@@ -148,15 +200,20 @@ export class GameScene extends Phaser.Scene {
   // ──────────────────────────────────────────────────────────────────────────
   // CREATE
   // ──────────────────────────────────────────────────────────────────────────
-  create(): void {
+  create(data?: { stage?: number; score?: number; lives?: number }): void {
+    // Read stage from init data (stage transitions pass data forward)
+    this.currentStage = (data?.stage ?? 1);
+    const cfgIndex    = Math.min(this.currentStage - 1, STAGE_CONFIGS.length - 1);
+    this.stageCfg     = STAGE_CONFIGS[cfgIndex];
+
     this.gameOverFlag   = false;
     this.stageClearFlag = false;
     this.overlayShown   = false;
-    this.score          = 0;
-    this.playerLives    = 3;
-    this.totalEnemies   = 20;
+    this.score          = data?.score ?? 0;
+    this.playerLives    = data?.lives ?? 3;
+    this.totalEnemies   = this.stageCfg.totalEnemies;
     this.enemiesDefeated= 0;
-    this.enemySpawnTimer= 2000;
+    this.enemySpawnTimer= this.stageCfg.spawnInterval;
     this.spawnRoundRobin= 0;
     this.enemies        = [];
     this.bullets        = [];
@@ -165,7 +222,7 @@ export class GameScene extends Phaser.Scene {
     this.playerInvTimer      = 0;
     this.playerRespawnTimer  = 0;
 
-    this.tileMap = buildMap();
+    this.tileMap = buildMap(this.stageCfg.blocks);
 
     // ── Background ────────────────────────────────────────────────────────
     const bg = this.add.graphics().setDepth(0);
@@ -408,7 +465,7 @@ export class GameScene extends Phaser.Scene {
   // ENEMY SPAWN
   // ──────────────────────────────────────────────────────────────────────────
   private spawnEnemy(): void {
-    if (this.enemies.length >= this.MAX_ON_SCREEN) return;
+    if (this.enemies.length >= this.stageCfg.maxOnScreen) return;
     const remaining = this.totalEnemies - this.enemiesDefeated - this.enemies.length;
     if (remaining <= 0) return;
 
@@ -418,10 +475,11 @@ export class GameScene extends Phaser.Scene {
     const px = OX + col * TILE + TANK / 2;
     const py = OY + TANK / 2;
 
-    // Pick enemy type (more varied as game progresses)
-    const typeIndex = this.enemiesDefeated < 10
-      ? (Math.random() < 0.6 ? 0 : 1)
-      : Math.floor(Math.random() * 3);
+    // Pick enemy type based on stage weight table
+    const w = this.stageCfg.typeWeights;
+    const total = w[0] + w[1] + w[2];
+    const roll  = Math.random() * total;
+    const typeIndex = roll < w[0] ? 0 : roll < w[0] + w[1] ? 1 : 2;
     const def = ENEMY_TYPES[typeIndex];
 
     const spr = this.physics.add.image(px, py, `tank_enemy_${typeIndex}`)
@@ -432,14 +490,15 @@ export class GameScene extends Phaser.Scene {
     const dir: Dir = 2; // face DOWN
     spr.setAngle(DANG[dir]);
 
+    const { shootMin, shootMax, enemySpeedMult } = this.stageCfg;
     this.enemies.push({
       sprite: spr,
       dir,
       type: typeIndex,
       health: def.health,
-      speed: def.speed,
+      speed: def.speed * enemySpeedMult,
       moveTimer: 500 + Math.random() * 1500,
-      shootTimer: 1000 + Math.random() * 2000,
+      shootTimer: shootMin + Math.random() * (shootMax - shootMin),
       flashTimer: 0,
     });
 
@@ -479,7 +538,7 @@ export class GameScene extends Phaser.Scene {
     const style = { fontFamily: 'monospace', color: '#eeeeee', fontSize: '16px' };
     const titleStyle = { fontFamily: 'monospace', color: '#ffcc00', fontSize: '14px', fontStyle: 'bold' };
 
-    this.add.text(x, 56, '★ STAGE 1 ★', titleStyle).setDepth(10);
+    this.add.text(x, 56, `★ STAGE ${this.currentStage} ★`, titleStyle).setDepth(10);
     this.add.text(x, 80, '─────────────', { fontFamily: 'monospace', color: '#444444', fontSize: '14px' }).setDepth(10);
 
     this.add.text(x, 108, 'SCORE', titleStyle).setDepth(10);
@@ -664,7 +723,8 @@ export class GameScene extends Phaser.Scene {
       // Shoot
       e.shootTimer -= delta;
       if (e.shootTimer <= 0) {
-        e.shootTimer = 1200 + Math.random() * 2000;
+        const { shootMin, shootMax } = this.stageCfg;
+        e.shootTimer = shootMin + Math.random() * (shootMax - shootMin);
         this.fireBullet(e.sprite, e.dir, 'enemy');
       }
 
@@ -770,7 +830,7 @@ export class GameScene extends Phaser.Scene {
     if (remaining <= 0) return;
     this.enemySpawnTimer -= delta;
     if (this.enemySpawnTimer <= 0) {
-      this.enemySpawnTimer = 3000;
+      this.enemySpawnTimer = this.stageCfg.spawnInterval;
       this.spawnEnemy();
     }
   }
@@ -903,45 +963,74 @@ export class GameScene extends Phaser.Scene {
     const cx = OX + MAP_W / 2;
     const cy = OY + MAP_H / 2;
 
+    const isLastStage = this.currentStage >= STAGE_CONFIGS.length;
+
     // Dim
     const dim = this.add.graphics().setDepth(1000);
     dim.fillStyle(0x000000, 0.65);
     dim.fillRect(OX, OY, MAP_W, MAP_H);
 
     if (this.stageClearFlag && !this.gameOverFlag) {
-      const t = this.add.text(cx, cy - 40, 'STAGE CLEAR!', {
+      const headline = isLastStage ? 'YOU WIN!' : 'STAGE CLEAR!';
+      const t = this.add.text(cx, cy - 50, headline, {
         fontFamily: 'monospace', fontSize: '40px', color: '#ffff44', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(1001).setAlpha(0);
-      this.add.text(cx, cy + 20, `SCORE: ${this.score}`, {
-        fontFamily: 'monospace', fontSize: '24px', color: '#ffffff',
-      }).setOrigin(0.5).setDepth(1001);
       this.tweens.add({ targets: t, alpha: 1, duration: 400, ease: 'Power2' });
+
+      if (!isLastStage) {
+        this.add.text(cx, cy + 5, `STAGE ${this.currentStage} COMPLETE`, {
+          fontFamily: 'monospace', fontSize: '18px', color: '#aaffaa',
+        }).setOrigin(0.5).setDepth(1001);
+      }
+
+      this.add.text(cx, cy + 35, `SCORE: ${this.score}`, {
+        fontFamily: 'monospace', fontSize: '22px', color: '#ffffff',
+      }).setOrigin(0.5).setDepth(1001);
+
+      const promptLabel = isLastStage
+        ? '[ PRESS SPACE TO PLAY AGAIN ]'
+        : `[ PRESS SPACE FOR STAGE ${this.currentStage + 1} ]`;
+      const restart = this.add.text(cx, cy + 76, promptLabel, {
+        fontFamily: 'monospace', fontSize: '18px', color: '#ffff88',
+      }).setOrigin(0.5).setDepth(1001);
+      this.tweens.add({ targets: restart, alpha: { from: 1, to: 0.3 }, yoyo: true, repeat: -1, duration: 600 });
+
+      const advance = () => {
+        if (isLastStage) {
+          // Restart from stage 1
+          this.scene.start('GameScene', { stage: 1, score: 0, lives: 3 });
+        } else {
+          // Advance to next stage, carry score + lives
+          this.scene.start('GameScene', {
+            stage: this.currentStage + 1,
+            score: this.score,
+            lives: this.playerLives,
+          });
+        }
+      };
+      this.input.keyboard!.once('keydown-SPACE', advance);
+      this.input.keyboard!.once('keydown-ENTER', advance);
+
     } else {
-      const t = this.add.text(cx, cy - 40, 'GAME OVER', {
+      const t = this.add.text(cx, cy - 50, 'GAME OVER', {
         fontFamily: 'monospace', fontSize: '44px', color: '#ff4444', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(1001).setAlpha(0);
       this.add.text(cx, cy + 20, `SCORE: ${this.score}`, {
         fontFamily: 'monospace', fontSize: '24px', color: '#aaaaaa',
       }).setOrigin(0.5).setDepth(1001);
       this.tweens.add({ targets: t, alpha: 1, duration: 400 });
+
+      const restart = this.add.text(cx, cy + 70, '[ PRESS SPACE TO PLAY AGAIN ]', {
+        fontFamily: 'monospace', fontSize: '18px', color: '#cccccc',
+      }).setOrigin(0.5).setDepth(1001);
+      this.tweens.add({ targets: restart, alpha: { from: 1, to: 0.3 }, yoyo: true, repeat: -1, duration: 600 });
+
+      this.input.keyboard!.once('keydown-SPACE', () => {
+        this.scene.start('GameScene', { stage: 1, score: 0, lives: 3 });
+      });
+      this.input.keyboard!.once('keydown-ENTER', () => {
+        this.scene.start('GameScene', { stage: 1, score: 0, lives: 3 });
+      });
     }
-
-    const restart = this.add.text(cx, cy + 70, '[ PRESS SPACE TO PLAY AGAIN ]', {
-      fontFamily: 'monospace', fontSize: '18px', color: '#cccccc',
-    }).setOrigin(0.5).setDepth(1001);
-    this.tweens.add({
-      targets: restart,
-      alpha: { from: 1, to: 0.3 },
-      yoyo: true,
-      repeat: -1,
-      duration: 600,
-    });
-
-    this.input.keyboard!.once('keydown-SPACE', () => {
-      this.scene.restart();
-    });
-    this.input.keyboard!.once('keydown-ENTER', () => {
-      this.scene.restart();
-    });
   }
 }
