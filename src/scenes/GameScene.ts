@@ -221,6 +221,8 @@ export class GameScene extends Phaser.Scene {
     this.playerBulletCooldown= 0;
     this.playerInvTimer      = 0;
     this.playerRespawnTimer  = 0;
+    this.eagleAlive          = true;
+    this.eagleSprite         = undefined;
 
     this.tileMap = buildMap(this.stageCfg.blocks);
 
@@ -262,6 +264,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── HUD ───────────────────────────────────────────────────────────────
     this.createHUD();
+
+    // ── Focus canvas so keyboard works without clicking first ─────────────
+    this.game.canvas.focus();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
