@@ -30,8 +30,14 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 ## Controls
 - **SPACE held** → arrow moves up-right at 45°
 - **SPACE released** → arrow moves down-right at 45°
-- **ESC** → toggle pause menu (Resume / Restart)
+- **ESC** → toggle pause menu; if GEODE is open, ESC closes GEODE first
+
+## GEODE Panel (cheat menu)
+- Skull square button (46×46, dark red, pixel-art skull icon) sits to the left of RESTART in the pause menu.
+- Opens the GEODE sub-panel: dark violet theme, `G E O D E` spaced monospace title with purple glow shadow.
+- **NOCLIP** toggle: when ON, collision and ceiling/floor death are bypassed (arrow clamps at boundary instead). A `◈ NOCLIP` indicator shows top-right during play.
+- `← BACK` button and ESC close GEODE and return to the pause menu.
+- Fields: `noclip`, `geodeOpen`, `geodeObjs[]`, `noclipTxt`. All reset in `init()`.
 
 ## This Turn
-- **Arrow stub shortened**: tail base reduced from -14 to -8 units behind centre; finBack 9→5, finSpread 7→5, notchBack 3→2, shW 4→3. Arrow looks more compact / dart-like.
-- **Single-path level**: 35 explicitly designed gap-centre fractions (one per wall). Each wall now has exactly ONE narrow 82 px gap — no two openings on any wall. Gap centres snake: centre → high → low → centre → low → high, etc. Spike clusters reduced to 1 per gap (from up to 2), placed near floor when path rises and near ceiling when path falls.
+- **GEODE cheat panel**: skull square button added to the left of RESTART in the pause menu; opens a violet GEODE sub-menu with a NOCLIP toggle and `← BACK` button. ESC closes GEODE before closing pause.

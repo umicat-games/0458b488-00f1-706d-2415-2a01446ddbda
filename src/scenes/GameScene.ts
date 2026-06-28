@@ -44,6 +44,11 @@ export class GameScene extends Phaser.Scene {
   private paused    = false;
   private pauseObjs: Phaser.GameObjects.GameObject[] = [];
 
+  private noclip    = false;
+  private geodeOpen = false;
+  private geodeObjs: Phaser.GameObjects.GameObject[] = [];
+  private noclipTxt!: Phaser.GameObjects.Text;
+
   constructor() { super({ key: 'GameScene' }); }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -54,8 +59,11 @@ export class GameScene extends Phaser.Scene {
     this.dead    = false;
     this.obs      = [];
     this.trailPts = [];
-    this.paused   = false;
+    this.paused    = false;
     this.pauseObjs = [];
+    this.noclip    = false;
+    this.geodeOpen = false;
+    this.geodeObjs = [];
   }
 
   create(): void {
@@ -69,6 +77,11 @@ export class GameScene extends Phaser.Scene {
     this.escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.syncObs();
     this.paintArrow();
+
+    // Noclip on-screen indicator (hidden by default)
+    this.noclipTxt = this.add.text(EW - 8, 10, '◈ NOCLIP', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#dd44ff',
+    }).setOrigin(1, 0).setDepth(10).setVisible(false);
   }
 
   // ── Sky ────────────────────────────────────────────────────────────────────
@@ -471,6 +484,7 @@ export class GameScene extends Phaser.Scene {
   private togglePause(): void {
     if (this.paused) {
       this.paused = false;
+      if (this.geodeOpen) this.closeGeode();
       for (const o of this.pauseObjs) o.destroy();
       this.pauseObjs = [];
     } else {
@@ -547,27 +561,83 @@ export class GameScene extends Phaser.Scene {
     resumeHit.on('pointerdown', () => this.togglePause());
     this.pauseObjs.push(resumeHit);
 
-    // ── RESTART button ──
+    // ── Skull button + RESTART button (side by side) ──
+    const sqSize  = bh;                               // 46 — square button, same height
+    const btnGap  = 8;
+    const rowW    = sqSize + btnGap + bw;             // total row width
+    const rowLeft = cx - rowW / 2;
+
+    const skullCX  = rowLeft + sqSize / 2;            // skull button centre X
+    const restartL = rowLeft + sqSize + btnGap;       // restart button left edge
+    const restartCX = restartL + bw / 2;              // restart button centre X
+
     const restartY = resumeY + bh + 12;
+
+    // ─ Skull square button ─
+    const skullGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    const drawSkull = (hover: boolean): void => {
+      skullGfx.clear();
+      // Button background
+      skullGfx.fillStyle(hover ? 0x661111 : 0x2a0808, 1);
+      skullGfx.fillRoundedRect(rowLeft, restartY - sqSize / 2, sqSize, sqSize, 8);
+      skullGfx.lineStyle(2, 0xff4444, 0.85);
+      skullGfx.strokeRoundedRect(rowLeft, restartY - sqSize / 2, sqSize, sqSize, 8);
+      // Skull icon centered at (skullCX, restartY)
+      const sx = skullCX, sy = restartY;
+      const col  = hover ? 0xffffff : 0xddbbbb;
+      const dark = hover ? 0x661111 : 0x2a0808;
+      // Dome
+      skullGfx.fillStyle(col, 1);
+      skullGfx.fillCircle(sx, sy - 5, 10);
+      // Jaw
+      skullGfx.fillRect(sx - 8, sy + 4, 16, 9);
+      // Eyes
+      skullGfx.fillStyle(dark, 1);
+      skullGfx.fillEllipse(sx - 3.5, sy - 6, 5, 6);
+      skullGfx.fillEllipse(sx + 3.5, sy - 6, 5, 6);
+      // Nose notch
+      skullGfx.fillStyle(dark, 0.8);
+      skullGfx.fillTriangle(sx - 2, sy - 1, sx + 2, sy - 1, sx, sy + 2);
+      // Jaw divider line
+      skullGfx.lineStyle(1, dark, 1);
+      skullGfx.beginPath(); skullGfx.moveTo(sx - 8, sy + 4); skullGfx.lineTo(sx + 8, sy + 4); skullGfx.strokePath();
+      // Tooth gaps (dark cuts at bottom of jaw)
+      skullGfx.fillStyle(dark, 1);
+      skullGfx.fillRect(sx - 8, sy + 10, 4, 3);
+      skullGfx.fillRect(sx - 1, sy + 10, 3, 3);
+      skullGfx.fillRect(sx + 4, sy + 10, 4, 3);
+    };
+    drawSkull(false);
+    this.tweens.add({ targets: skullGfx, alpha: 1, duration: 200, delay: 130 });
+    this.pauseObjs.push(skullGfx);
+
+    const skullHit = this.add.rectangle(skullCX, restartY, sqSize, sqSize, 0x000000, 0)
+      .setDepth(204).setInteractive({ useHandCursor: true });
+    skullHit.on('pointerover', () => drawSkull(true));
+    skullHit.on('pointerout',  () => drawSkull(false));
+    skullHit.on('pointerdown', () => this.showGeodeUI());
+    this.pauseObjs.push(skullHit);
+
+    // ─ RESTART button ─
     const restartGfx = this.add.graphics().setDepth(202).setAlpha(0);
     const drawRestart = (hover: boolean): void => {
       restartGfx.clear();
       restartGfx.fillStyle(hover ? 0x884400 : 0x553300, 1);
-      restartGfx.fillRoundedRect(cx - bw / 2, restartY - bh / 2, bw, bh, 10);
+      restartGfx.fillRoundedRect(restartL, restartY - bh / 2, bw, bh, 10);
       restartGfx.lineStyle(2, 0xff8844, 0.8);
-      restartGfx.strokeRoundedRect(cx - bw / 2, restartY - bh / 2, bw, bh, 10);
+      restartGfx.strokeRoundedRect(restartL, restartY - bh / 2, bw, bh, 10);
     };
     drawRestart(false);
     this.tweens.add({ targets: restartGfx, alpha: 1, duration: 200, delay: 130 });
     this.pauseObjs.push(restartGfx);
 
-    const restartTxt = this.add.text(cx, restartY, 'RESTART', {
+    const restartTxt = this.add.text(restartCX, restartY, 'RESTART', {
       fontFamily: 'sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#ffaa66',
     }).setOrigin(0.5).setDepth(203).setAlpha(0);
     this.tweens.add({ targets: restartTxt, alpha: 1, duration: 200, delay: 130 });
     this.pauseObjs.push(restartTxt);
 
-    const restartHit = this.add.rectangle(cx, restartY, bw, bh, 0x000000, 0)
+    const restartHit = this.add.rectangle(restartCX, restartY, bw, bh, 0x000000, 0)
       .setDepth(204).setInteractive({ useHandCursor: true });
     restartHit.on('pointerover', () => drawRestart(true));
     restartHit.on('pointerout',  () => drawRestart(false));
@@ -582,11 +652,142 @@ export class GameScene extends Phaser.Scene {
     this.pauseObjs.push(hintTxt);
   }
 
+  // ── GEODE panel ───────────────────────────────────────────────────────────
+  private showGeodeUI(): void {
+    if (this.geodeOpen) return;
+    this.geodeOpen = true;
+
+    const cx = EW / 2, cy = EH / 2;
+    const pw = 300, ph = 200;
+    const pL = cx - pw / 2, pT = cy - ph / 2;
+
+    // Dim over pause panel
+    const dim = this.add.rectangle(cx, cy, EW, EH, 0x000000, 0.5).setDepth(300).setAlpha(0);
+    this.tweens.add({ targets: dim, alpha: 1, duration: 180 });
+    this.geodeObjs.push(dim);
+
+    // Panel (dark violet theme)
+    const panelGfx = this.add.graphics().setDepth(301).setAlpha(0);
+    panelGfx.fillStyle(0x08041a, 1);
+    panelGfx.fillRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(2.5, 0xaa66ff, 1);
+    panelGfx.strokeRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(1, 0xaa66ff, 0.25);
+    panelGfx.strokeRoundedRect(pL + 4, pT + 4, pw - 8, ph - 8, 11);
+    this.tweens.add({ targets: panelGfx, alpha: 1, duration: 180 });
+    this.geodeObjs.push(panelGfx);
+
+    // Title — "G E O D E" spaced monospace for that robotic look
+    const titleTxt = this.add.text(cx, pT + 36, 'G E O D E', {
+      fontFamily: 'monospace', fontSize: '26px', fontStyle: 'bold', color: '#aa66ff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#7733cc', blur: 8, fill: true },
+    }).setOrigin(0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: titleTxt, alpha: 1, duration: 180, delay: 50 });
+    this.geodeObjs.push(titleTxt);
+
+    // Divider
+    const divGfx = this.add.graphics().setDepth(302).setAlpha(0);
+    divGfx.lineStyle(1, 0xaa66ff, 0.3);
+    divGfx.beginPath(); divGfx.moveTo(pL + 20, pT + 60); divGfx.lineTo(pL + pw - 20, pT + 60); divGfx.strokePath();
+    this.tweens.add({ targets: divGfx, alpha: 1, duration: 180, delay: 50 });
+    this.geodeObjs.push(divGfx);
+
+    // ── NOCLIP toggle row ──
+    const rowY = pT + 96;
+
+    const noclipLbl = this.add.text(pL + 24, rowY - 8, 'NOCLIP', {
+      fontFamily: 'monospace', fontSize: '14px', fontStyle: 'bold', color: '#cc99ff',
+    }).setOrigin(0, 0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: noclipLbl, alpha: 1, duration: 180, delay: 80 });
+    this.geodeObjs.push(noclipLbl);
+
+    const descTxt = this.add.text(pL + 24, rowY + 10, 'pass through obstacles', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#7755aa',
+    }).setOrigin(0, 0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: descTxt, alpha: 1, duration: 180, delay: 80 });
+    this.geodeObjs.push(descTxt);
+
+    const toggleW = 60, toggleH = 28;
+    const toggleX = pL + pw - 24 - toggleW;
+
+    const toggleGfx = this.add.graphics().setDepth(302).setAlpha(0);
+    const toggleTxt = this.add.text(toggleX + toggleW / 2, rowY, '', {
+      fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#cc99ff',
+    }).setOrigin(0.5).setDepth(303).setAlpha(0);
+    this.geodeObjs.push(toggleTxt);
+
+    const drawToggle = (): void => {
+      toggleGfx.clear();
+      if (this.noclip) {
+        toggleGfx.fillStyle(0x7722cc, 1);
+        toggleGfx.fillRoundedRect(toggleX, rowY - toggleH / 2, toggleW, toggleH, 6);
+        toggleGfx.lineStyle(2, 0xaa66ff, 1);
+        toggleGfx.strokeRoundedRect(toggleX, rowY - toggleH / 2, toggleW, toggleH, 6);
+        toggleTxt.setText('ON').setColor('#cc99ff');
+      } else {
+        toggleGfx.fillStyle(0x1a1133, 1);
+        toggleGfx.fillRoundedRect(toggleX, rowY - toggleH / 2, toggleW, toggleH, 6);
+        toggleGfx.lineStyle(1.5, 0x443366, 0.8);
+        toggleGfx.strokeRoundedRect(toggleX, rowY - toggleH / 2, toggleW, toggleH, 6);
+        toggleTxt.setText('OFF').setColor('#554477');
+      }
+    };
+    drawToggle();
+    this.tweens.add({ targets: [toggleGfx, toggleTxt], alpha: 1, duration: 180, delay: 80 });
+    this.geodeObjs.push(toggleGfx);
+
+    const toggleHit = this.add.rectangle(toggleX + toggleW / 2, rowY, toggleW, toggleH, 0x000000, 0)
+      .setDepth(304).setInteractive({ useHandCursor: true });
+    toggleHit.on('pointerdown', () => {
+      this.noclip = !this.noclip;
+      this.noclipTxt.setVisible(this.noclip);
+      drawToggle();
+      // Brief flash on toggle
+      this.tweens.add({ targets: toggleGfx, scaleX: 1.08, scaleY: 1.08, duration: 70, yoyo: true });
+    });
+    this.geodeObjs.push(toggleHit);
+
+    // ── Back button ──
+    const backBW = 120, backBH = 34;
+    const backY = pT + ph - 30;
+    const backGfx = this.add.graphics().setDepth(302).setAlpha(0);
+    const drawBack = (hover: boolean): void => {
+      backGfx.clear();
+      backGfx.fillStyle(hover ? 0x332255 : 0x100a22, 1);
+      backGfx.fillRoundedRect(cx - backBW / 2, backY - backBH / 2, backBW, backBH, 8);
+      backGfx.lineStyle(1.5, 0xaa66ff, hover ? 1 : 0.5);
+      backGfx.strokeRoundedRect(cx - backBW / 2, backY - backBH / 2, backBW, backBH, 8);
+    };
+    drawBack(false);
+    this.tweens.add({ targets: backGfx, alpha: 1, duration: 180, delay: 110 });
+    this.geodeObjs.push(backGfx);
+
+    const backTxt = this.add.text(cx, backY, '← BACK', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#aa66ff',
+    }).setOrigin(0.5).setDepth(303).setAlpha(0);
+    this.tweens.add({ targets: backTxt, alpha: 1, duration: 180, delay: 110 });
+    this.geodeObjs.push(backTxt);
+
+    const backHit = this.add.rectangle(cx, backY, backBW, backBH, 0x000000, 0)
+      .setDepth(304).setInteractive({ useHandCursor: true });
+    backHit.on('pointerover', () => drawBack(true));
+    backHit.on('pointerout',  () => drawBack(false));
+    backHit.on('pointerdown', () => this.closeGeode());
+    this.geodeObjs.push(backHit);
+  }
+
+  private closeGeode(): void {
+    this.geodeOpen = false;
+    for (const o of this.geodeObjs) o.destroy();
+    this.geodeObjs = [];
+  }
+
   // ── Update ─────────────────────────────────────────────────────────────────
   update(_time: number, delta: number): void {
-    // ESC toggles pause (only when playing)
+    // ESC: close GEODE if open, otherwise toggle pause
     if (Phaser.Input.Keyboard.JustDown(this.escKey) && !this.dead) {
-      this.togglePause();
+      if (this.geodeOpen) { this.closeGeode(); }
+      else { this.togglePause(); }
       return;
     }
     if (this.dead || this.paused) return;
@@ -606,10 +807,13 @@ export class GameScene extends Phaser.Scene {
     this.goingUp = this.space.isDown;
     this.arrowY += (this.goingUp ? -1 : 1) * VSPEED * dt;
 
-    if (this.arrowY < 10 || this.arrowY > EH - 10) { this.die(); return; }
+    if (this.arrowY < 10 || this.arrowY > EH - 10) {
+      if (this.noclip) { this.arrowY = Phaser.Math.Clamp(this.arrowY, 10, EH - 10); }
+      else { this.die(); return; }
+    }
 
     this.syncObs();
-    if (this.checkHits()) { this.die(); return; }
+    if (!this.noclip && this.checkHits()) { this.die(); return; }
 
     this.paintTrail();
     this.paintArrow();
