@@ -30,7 +30,7 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 ## Controls
 - **SPACE held** → arrow moves up-right at 45°
 - **SPACE released** → arrow moves down-right at 45°
-- **ESC** → toggle pause menu; if GEODE is open, ESC closes GEODE first
+- **ESC / P** → toggle pause menu; if GEODE is open, either key closes GEODE first
 
 ## GEODE Panel (cheat menu)
 - Skull square button (46×46, dark red, pixel-art skull icon) sits to the left of RESTART in the pause menu.

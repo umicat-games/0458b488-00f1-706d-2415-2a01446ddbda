@@ -41,6 +41,7 @@ export class GameScene extends Phaser.Scene {
 
   private space!:    Phaser.Input.Keyboard.Key;
   private escKey!:   Phaser.Input.Keyboard.Key;
+  private pKey!:     Phaser.Input.Keyboard.Key;
   private paused    = false;
   private pauseObjs: Phaser.GameObjects.GameObject[] = [];
 
@@ -75,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     this.buildLevel();
     this.space  = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.pKey   = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.syncObs();
     this.paintArrow();
 
@@ -645,7 +647,7 @@ export class GameScene extends Phaser.Scene {
     this.pauseObjs.push(restartHit);
 
     // Hint text
-    const hintTxt = this.add.text(cx, restartY + bh / 2 + 14, 'press ESC to resume', {
+    const hintTxt = this.add.text(cx, restartY + bh / 2 + 14, 'press P or ESC to resume', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#337755',
     }).setOrigin(0.5).setDepth(202).setAlpha(0);
     this.tweens.add({ targets: hintTxt, alpha: 1, duration: 200, delay: 160 });
@@ -784,8 +786,9 @@ export class GameScene extends Phaser.Scene {
 
   // ── Update ─────────────────────────────────────────────────────────────────
   update(_time: number, delta: number): void {
-    // ESC: close GEODE if open, otherwise toggle pause
-    if (Phaser.Input.Keyboard.JustDown(this.escKey) && !this.dead) {
+    // ESC or P: close GEODE if open, otherwise toggle pause
+    const pausePressed = (Phaser.Input.Keyboard.JustDown(this.escKey) || Phaser.Input.Keyboard.JustDown(this.pKey)) && !this.dead;
+    if (pausePressed) {
       if (this.geodeOpen) { this.closeGeode(); }
       else { this.togglePause(); }
       return;
