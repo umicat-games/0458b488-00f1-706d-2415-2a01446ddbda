@@ -12,10 +12,10 @@ const ARROW_X = Math.round(EW / 2);   // ≈ 457 — horizontally centred
 const OBS_W   = 44;
 const SPK_W   = 26;   // single spike width
 const SPK_H   = 50;   // single spike height
-const LEVEL_L = 16200;
-const NUM_OBS = 35;
-const TRAIL_L = 150;
-const MTN_B   = 10;   // pixel-art mountain block size
+const LEVEL_L    = 16200;
+const NUM_OBS    = 35;
+const TRAIL_CAP  = 400;  // max trail history points (≈ 6 s at 60 fps)
+const MTN_B      = 10;   // pixel-art mountain block size
 
 interface ObsBlock {
   gfx:   Phaser.GameObjects.Graphics;
@@ -36,6 +36,8 @@ export class GameScene extends Phaser.Scene {
   private farMtns!:   Phaser.GameObjects.Graphics;
   private nearMtns!:  Phaser.GameObjects.Graphics;
   private obs:        ObsBlock[] = [];
+  // Trail: world-space position history  { wx = levelX at that frame, wy = arrowY }
+  private trailPts:   Array<{ wx: number; wy: number }> = [];
 
   private space!: Phaser.Input.Keyboard.Key;
 
@@ -48,6 +50,7 @@ export class GameScene extends Phaser.Scene {
     this.goingUp = false;
     this.dead    = false;
     this.obs     = [];
+    this.trailPts = [];
   }
 
   create(): void {
@@ -287,22 +290,36 @@ export class GameScene extends Phaser.Scene {
     this.arrowGfx.fillTriangle(tipX, tipY, x + px * (HW * 0.4), y + py * (HW * 0.4), x + px * 1.5 + dx * 6, y + py * 1.5 + dy * 6);
   }
 
-  // ── Trail — straight 45° streak ────────────────────────────────────────────
+  // ── Trail — persistent solid path following the arrow ─────────────────────
+  // Records the arrow's world position every frame and draws it as a solid
+  // connected line that scrolls with the level (never fades, never ends).
   private paintTrail(): void {
+    // Record current position
+    this.trailPts.push({ wx: this.levelX, wy: this.arrowY });
+    if (this.trailPts.length > TRAIL_CAP) this.trailPts.shift();
+
     this.trailGfx.clear();
-    const rad = Phaser.Math.DegToRad(this.goingUp ? -45 : 45);
-    const dx = Math.cos(rad), dy = Math.sin(rad);
-    for (let i = 0; i < 22; i++) {
-      const t     = i / 22;
-      const alpha = Math.pow(1 - t, 1.4) * 0.9;
-      const size  = (1 - t) * 9 + 1.5;
-      const cx    = ARROW_X - dx * TRAIL_L * t;
-      const cy    = this.arrowY - dy * TRAIL_L * t;
-      this.trailGfx.fillStyle(0x00ff88, alpha * 0.22);
-      this.trailGfx.fillCircle(cx, cy, size + 5);
-      this.trailGfx.fillStyle(0x66ff99, alpha);
-      this.trailGfx.fillCircle(cx, cy, size);
-    }
+    const n = this.trailPts.length;
+    if (n < 2) return;
+
+    // Map a stored world point → current screen position
+    const sx = (wx: number) => wx - this.levelX + ARROW_X;
+
+    // Glow pass (wide, soft)
+    this.trailGfx.lineStyle(18, 0x00ff88, 0.22);
+    this.trailGfx.beginPath();
+    this.trailGfx.moveTo(sx(this.trailPts[0].wx), this.trailPts[0].wy);
+    for (let i = 1; i < n; i++)
+      this.trailGfx.lineTo(sx(this.trailPts[i].wx), this.trailPts[i].wy);
+    this.trailGfx.strokePath();
+
+    // Core pass (solid bright green)
+    this.trailGfx.lineStyle(5, 0x44ff88, 1);
+    this.trailGfx.beginPath();
+    this.trailGfx.moveTo(sx(this.trailPts[0].wx), this.trailPts[0].wy);
+    for (let i = 1; i < n; i++)
+      this.trailGfx.lineTo(sx(this.trailPts[i].wx), this.trailPts[i].wy);
+    this.trailGfx.strokePath();
   }
 
   // ── Obstacles ─────────────────────────────────────────────────────────────

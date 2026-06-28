@@ -5,7 +5,7 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 
 ## Implemented Features
 - **Arrow**: drawn with Graphics (green shaft, blue head, glow halo). Rotates ±45° based on SPACE state. Positioned at horizontal center of screen (ARROW_X = EW/2 ≈ 457).
-- **Trail**: straight 45° glowing line that extends BACKWARD from the arrow in the exact opposite direction of travel (22 circle-blobs, fading from arrow out to TRAIL_L=150 world-px). Trail snaps to new angle instantly when direction changes.
+- **Trail**: persistent solid history-based polyline. Stores up to TRAIL_CAP=400 world-space positions (wx=levelX, wy=arrowY). Each frame maps pts to screen (screenX = wx - levelX + ARROW_X). Drawn as two passes: soft glow (18px, 22% alpha) + solid bright-green core (5px, 100% alpha). Never fades, never ends — traces the exact wave path the arrow has cut through the level.
 - **Wall Obstacles**: 35 columns of orange/red rectangular blocks cycling 10 patterns; first at worldX=820, spacing ~436px. Each block has glow halo, layered gradient body, yellow warning chevrons.
 - **Spike Obstacles**: Cyan/teal triangular spikes (pointing up from floor or down from ceiling) placed between every wall pair — up to 2 spike clusters per gap. 8 different placement patterns cycled. Makes the game significantly harder.
 - **Pixel-art Mountains**: Two parallax layers drawn with 10px block silhouettes. Far layer (dark purple, 0.12× parallax), near layer (dark navy, 0.28× parallax). Drawn 3× wide for seamless looping via Graphics setX().
@@ -32,8 +32,6 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - **SPACE released** → arrow moves down-right at 45°
 
 ## This Turn
-- Arrow repositioned to horizontal center (ARROW_X = EW/2).
-- Added pixel-art mountain background with two parallax layers.
-- Added seeded pixel-art stars.
-- Added cyan spike obstacles (floor/ceiling) between wall columns — ~40 spike clusters make the level much harder.
-- ObsBlock now has `hw` field for per-obstacle collision width.
+- Trail changed to solid persistent position-history polyline (follows actual wave path, no fade, no end).
+- Fullscreen enabled: CSS fills the page + Phaser Scale.FIT + CENTER_BOTH in main.ts config.
+- Previous turns: arrow centred, pixel mountains, spikes, speed/level-length increases.

@@ -1,15 +1,30 @@
+import Phaser from 'phaser';
 import { createUmicatGame } from '@umicat/phaser-sdk';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT } from './config';
 import { renderScripts } from './visuals';
 
+// Make the browser page itself full-bleed so the canvas can fill it
+(function injectBaseCSS() {
+  const s = document.createElement('style');
+  s.textContent = 'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;}';
+  document.head.appendChild(s);
+})();
+
 function startGame(): void {
-  createUmicatGame({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (createUmicatGame as any)({
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     scenes: [BootScene, GameScene],
     renderScripts,
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
+    },
   });
 }
 
