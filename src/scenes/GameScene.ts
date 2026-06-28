@@ -39,7 +39,10 @@ export class GameScene extends Phaser.Scene {
   // Trail: world-space position history  { wx = levelX at that frame, wy = arrowY }
   private trailPts:   Array<{ wx: number; wy: number }> = [];
 
-  private space!: Phaser.Input.Keyboard.Key;
+  private space!:    Phaser.Input.Keyboard.Key;
+  private escKey!:   Phaser.Input.Keyboard.Key;
+  private paused    = false;
+  private pauseObjs: Phaser.GameObjects.GameObject[] = [];
 
   constructor() { super({ key: 'GameScene' }); }
 
@@ -49,8 +52,10 @@ export class GameScene extends Phaser.Scene {
     this.arrowY  = EH / 2;
     this.goingUp = false;
     this.dead    = false;
-    this.obs     = [];
+    this.obs      = [];
     this.trailPts = [];
+    this.paused   = false;
+    this.pauseObjs = [];
   }
 
   create(): void {
@@ -60,7 +65,8 @@ export class GameScene extends Phaser.Scene {
     this.trailGfx = this.add.graphics().setDepth(2);
     this.arrowGfx = this.add.graphics().setDepth(3);
     this.buildLevel();
-    this.space = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.space  = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.syncObs();
     this.paintArrow();
   }
@@ -260,34 +266,82 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Arrow ──────────────────────────────────────────────────────────────────
+  // ── Arrow (shorter body + symmetrical fish-tail) ───────────────────────────
   private paintArrow(): void {
     this.arrowGfx.clear();
     const x = ARROW_X, y = this.arrowY;
     const rad = Phaser.Math.DegToRad(this.goingUp ? -45 : 45);
     const dx = Math.cos(rad), dy = Math.sin(rad);
-    const px = -dy, py = dx;
-    const HW    = 12;
-    const tailX = x - dx * 28, tailY = y - dy * 28;
-    const tipX  = x + dx * 17, tipY  = y + dy * 17;
+    const apx = -dy, apy = dx;   // perpendicular (arrow-local left)
+    const HW   = 10;
+    const tbx  = x - dx * 14, tby  = y - dy * 14;   // tail base (shaft end)
+    const tipX = x + dx * 12, tipY = y + dy * 12;   // arrowhead tip
 
+    // Halo glow
     this.arrowGfx.fillStyle(0x00ff88, 0.1);
-    this.arrowGfx.fillCircle(x, y, 34);
-    this.arrowGfx.lineStyle(18, 0x00ff88, 0.18);
-    this.arrowGfx.beginPath(); this.arrowGfx.moveTo(tailX, tailY); this.arrowGfx.lineTo(x, y); this.arrowGfx.strokePath();
-    this.arrowGfx.lineStyle(8, 0x00ee77, 1);
-    this.arrowGfx.beginPath(); this.arrowGfx.moveTo(tailX, tailY); this.arrowGfx.lineTo(x, y); this.arrowGfx.strokePath();
-    this.arrowGfx.lineStyle(2, 0xaaffcc, 0.65);
+    this.arrowGfx.fillCircle(x, y, 26);
+
+    // Shaft — glow pass
+    this.arrowGfx.lineStyle(14, 0x00ff88, 0.18);
     this.arrowGfx.beginPath();
-    this.arrowGfx.moveTo(tailX + px * 2.5, tailY + py * 2.5);
-    this.arrowGfx.lineTo(x     + px * 2.5, y     + py * 2.5);
+    this.arrowGfx.moveTo(tbx, tby); this.arrowGfx.lineTo(x, y);
     this.arrowGfx.strokePath();
+
+    // Shaft — solid
+    this.arrowGfx.lineStyle(7, 0x00ee77, 1);
+    this.arrowGfx.beginPath();
+    this.arrowGfx.moveTo(tbx, tby); this.arrowGfx.lineTo(x, y);
+    this.arrowGfx.strokePath();
+
+    // Shaft — highlight streak
+    this.arrowGfx.lineStyle(1.5, 0xaaffcc, 0.65);
+    this.arrowGfx.beginPath();
+    this.arrowGfx.moveTo(tbx + apx * 2, tby + apy * 2);
+    this.arrowGfx.lineTo(x   + apx * 2, y   + apy * 2);
+    this.arrowGfx.strokePath();
+
+    // Arrowhead — outer glow
     this.arrowGfx.fillStyle(0x0066cc, 0.3);
-    this.arrowGfx.fillTriangle(tipX + dx * 5, tipY + dy * 5, x + px * (HW + 5), y + py * (HW + 5), x - px * (HW + 5), y - py * (HW + 5));
+    this.arrowGfx.fillTriangle(tipX + dx * 4, tipY + dy * 4, x + apx * (HW + 4), y + apy * (HW + 4), x - apx * (HW + 4), y - apy * (HW + 4));
+    // Arrowhead — solid
     this.arrowGfx.fillStyle(0x0099ff, 1);
-    this.arrowGfx.fillTriangle(tipX, tipY, x + px * HW, y + py * HW, x - px * HW, y - py * HW);
+    this.arrowGfx.fillTriangle(tipX, tipY, x + apx * HW, y + apy * HW, x - apx * HW, y - apy * HW);
+    // Arrowhead — highlight streak
     this.arrowGfx.fillStyle(0x77ddff, 0.55);
-    this.arrowGfx.fillTriangle(tipX, tipY, x + px * (HW * 0.4), y + py * (HW * 0.4), x + px * 1.5 + dx * 6, y + py * 1.5 + dy * 6);
+    this.arrowGfx.fillTriangle(tipX, tipY, x + apx * (HW * 0.4), y + apy * (HW * 0.4), x + apx * 1.5 + dx * 5, y + apy * 1.5 + dy * 5);
+
+    // ── Fish tail — two symmetrical forked prongs meeting at a V-notch ────────
+    // prong tips: finBack units behind tailBase, spread finSpread laterally
+    // notch:      notchBack units behind tailBase (less than finBack → V opens outward)
+    const finBack   = 9;
+    const finSpread = 7;
+    const notchBack = 3;
+    const shW       = 4;   // shaft half-width at tailBase
+
+    const ubX = tbx + apx * shW,                          ubY = tby + apy * shW;   // upper shaft edge
+    const lbX = tbx - apx * shW,                          lbY = tby - apy * shW;   // lower shaft edge
+    const utX = tbx - dx * finBack + apx * finSpread,     utY = tby - dy * finBack + apy * finSpread;  // upper prong tip
+    const ltX = tbx - dx * finBack - apx * finSpread,     ltY = tby - dy * finBack - apy * finSpread;  // lower prong tip
+    const nvX = tbx - dx * notchBack,                     nvY = tby - dy * notchBack;                  // V-notch apex
+
+    // Tail — solid fill (both fins)
+    this.arrowGfx.fillStyle(0x00dd66, 1);
+    this.arrowGfx.fillTriangle(ubX, ubY, utX, utY, nvX, nvY);
+    this.arrowGfx.fillTriangle(lbX, lbY, ltX, ltY, nvX, nvY);
+
+    // Tail — highlight on upper fin
+    this.arrowGfx.fillStyle(0x44ffaa, 0.35);
+    this.arrowGfx.fillTriangle(ubX, ubY, utX, utY, nvX, nvY);
+
+    // Tail — outline
+    this.arrowGfx.lineStyle(1.5, 0x44ffaa, 0.9);
+    this.arrowGfx.beginPath();
+    this.arrowGfx.moveTo(ubX, ubY);
+    this.arrowGfx.lineTo(utX, utY);
+    this.arrowGfx.lineTo(nvX, nvY);
+    this.arrowGfx.lineTo(ltX, ltY);
+    this.arrowGfx.lineTo(lbX, lbY);
+    this.arrowGfx.strokePath();
   }
 
   // ── Trail — persistent solid path following the arrow ─────────────────────
@@ -416,9 +470,129 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Pause ──────────────────────────────────────────────────────────────────
+  private togglePause(): void {
+    if (this.paused) {
+      this.paused = false;
+      for (const o of this.pauseObjs) o.destroy();
+      this.pauseObjs = [];
+    } else {
+      this.paused = true;
+      this.showPauseUI();
+    }
+  }
+
+  private showPauseUI(): void {
+    const cx  = EW / 2, cy = EH / 2;
+    const pw  = 320,    ph = 238;
+    const pL  = cx - pw / 2;          // panel left edge
+    const pT  = cy - ph / 2;          // panel top edge
+
+    // Dim overlay
+    const dim = this.add.rectangle(cx, cy, EW, EH, 0x000000, 0.62)
+      .setDepth(200).setAlpha(0);
+    this.tweens.add({ targets: dim, alpha: 1, duration: 200 });
+    this.pauseObjs.push(dim);
+
+    // Panel
+    const panelGfx = this.add.graphics().setDepth(201).setAlpha(0);
+    panelGfx.fillStyle(0x060d1a, 1);
+    panelGfx.fillRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(2.5, 0x00ff88, 1);
+    panelGfx.strokeRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(1, 0x00ff88, 0.28);
+    panelGfx.strokeRoundedRect(pL + 4, pT + 4, pw - 8, ph - 8, 11);
+    this.tweens.add({ targets: panelGfx, alpha: 1, duration: 200 });
+    this.pauseObjs.push(panelGfx);
+
+    // Title
+    const titleTxt = this.add.text(cx, pT + 44, 'PAUSED', {
+      fontFamily: 'sans-serif', fontSize: '38px', fontStyle: 'bold', color: '#00ff88',
+    }).setOrigin(0.5).setDepth(202).setAlpha(0);
+    this.tweens.add({ targets: titleTxt, alpha: 1, duration: 200, delay: 60 });
+    this.pauseObjs.push(titleTxt);
+
+    // Divider
+    const divGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    divGfx.lineStyle(1, 0x00ff88, 0.28);
+    divGfx.beginPath();
+    divGfx.moveTo(pL + 24, pT + 78); divGfx.lineTo(pL + pw - 24, pT + 78);
+    divGfx.strokePath();
+    this.tweens.add({ targets: divGfx, alpha: 1, duration: 200, delay: 60 });
+    this.pauseObjs.push(divGfx);
+
+    const bw = 210, bh = 46;
+
+    // ── RESUME button ──
+    const resumeY = pT + 120;
+    const resumeGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    const drawResume = (hover: boolean): void => {
+      resumeGfx.clear();
+      resumeGfx.fillStyle(hover ? 0x00cc55 : 0x008f3c, 1);
+      resumeGfx.fillRoundedRect(cx - bw / 2, resumeY - bh / 2, bw, bh, 10);
+      resumeGfx.lineStyle(2, 0x00ff88, 1);
+      resumeGfx.strokeRoundedRect(cx - bw / 2, resumeY - bh / 2, bw, bh, 10);
+    };
+    drawResume(false);
+    this.tweens.add({ targets: resumeGfx, alpha: 1, duration: 200, delay: 100 });
+    this.pauseObjs.push(resumeGfx);
+
+    const resumeTxt = this.add.text(cx, resumeY, 'RESUME', {
+      fontFamily: 'sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#ffffff',
+    }).setOrigin(0.5).setDepth(203).setAlpha(0);
+    this.tweens.add({ targets: resumeTxt, alpha: 1, duration: 200, delay: 100 });
+    this.pauseObjs.push(resumeTxt);
+
+    const resumeHit = this.add.rectangle(cx, resumeY, bw, bh, 0x000000, 0)
+      .setDepth(204).setInteractive({ useHandCursor: true });
+    resumeHit.on('pointerover', () => drawResume(true));
+    resumeHit.on('pointerout',  () => drawResume(false));
+    resumeHit.on('pointerdown', () => this.togglePause());
+    this.pauseObjs.push(resumeHit);
+
+    // ── RESTART button ──
+    const restartY = resumeY + bh + 12;
+    const restartGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    const drawRestart = (hover: boolean): void => {
+      restartGfx.clear();
+      restartGfx.fillStyle(hover ? 0x884400 : 0x553300, 1);
+      restartGfx.fillRoundedRect(cx - bw / 2, restartY - bh / 2, bw, bh, 10);
+      restartGfx.lineStyle(2, 0xff8844, 0.8);
+      restartGfx.strokeRoundedRect(cx - bw / 2, restartY - bh / 2, bw, bh, 10);
+    };
+    drawRestart(false);
+    this.tweens.add({ targets: restartGfx, alpha: 1, duration: 200, delay: 130 });
+    this.pauseObjs.push(restartGfx);
+
+    const restartTxt = this.add.text(cx, restartY, 'RESTART', {
+      fontFamily: 'sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#ffaa66',
+    }).setOrigin(0.5).setDepth(203).setAlpha(0);
+    this.tweens.add({ targets: restartTxt, alpha: 1, duration: 200, delay: 130 });
+    this.pauseObjs.push(restartTxt);
+
+    const restartHit = this.add.rectangle(cx, restartY, bw, bh, 0x000000, 0)
+      .setDepth(204).setInteractive({ useHandCursor: true });
+    restartHit.on('pointerover', () => drawRestart(true));
+    restartHit.on('pointerout',  () => drawRestart(false));
+    restartHit.on('pointerdown', () => this.scene.restart());
+    this.pauseObjs.push(restartHit);
+
+    // Hint text
+    const hintTxt = this.add.text(cx, restartY + bh / 2 + 14, 'press ESC to resume', {
+      fontFamily: 'sans-serif', fontSize: '10px', color: '#337755',
+    }).setOrigin(0.5).setDepth(202).setAlpha(0);
+    this.tweens.add({ targets: hintTxt, alpha: 1, duration: 200, delay: 160 });
+    this.pauseObjs.push(hintTxt);
+  }
+
   // ── Update ─────────────────────────────────────────────────────────────────
   update(_time: number, delta: number): void {
-    if (this.dead) return;
+    // ESC toggles pause (only when playing)
+    if (Phaser.Input.Keyboard.JustDown(this.escKey) && !this.dead) {
+      this.togglePause();
+      return;
+    }
+    if (this.dead || this.paused) return;
     const dt = delta / 1000;
 
     this.levelX += SCROLL * dt;

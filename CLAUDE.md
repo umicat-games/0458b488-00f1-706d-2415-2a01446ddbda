@@ -30,8 +30,10 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 ## Controls
 - **SPACE held** → arrow moves up-right at 45°
 - **SPACE released** → arrow moves down-right at 45°
+- **ESC** → toggle pause menu (Resume / Restart)
 
 ## This Turn
-- Trail changed to solid persistent position-history polyline (follows actual wave path, no fade, no end).
-- Fullscreen enabled: CSS fills the page + Phaser Scale.FIT + CENTER_BOTH in main.ts config.
-- Previous turns: arrow centred, pixel mountains, spikes, speed/level-length increases.
+- Arrow shape: fish-tail (swallowtail) back end with two symmetrical forked prongs and V-notch. Arrow is shorter (tip at +12, tailBase at -14 from centre vs old +17/-28).
+- Fish tail drawn as two `fillTriangle` passes (upper fin + lower fin) meeting at a V-notch apex. `apx/apy` perpendicular used to avoid naming collision.
+- Pause menu: ESC toggles pause; `paused` flag stops update loop; `pauseObjs[]` array tracks all pause UI objects for clean destroy on resume. Panel centred at (EW/2, EH/2) with RESUME and RESTART buttons.
+- Previous turns: trail history polyline, fullscreen, arrow centred, pixel mountains, spikes.
