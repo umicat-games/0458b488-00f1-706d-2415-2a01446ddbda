@@ -6,8 +6,8 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 ## Implemented Features
 - **Arrow**: drawn with Graphics (green shaft, blue head, glow halo). Rotates ±45° based on SPACE state. Positioned at horizontal center of screen (ARROW_X = EW/2 ≈ 457).
 - **Trail**: persistent solid history-based polyline. Stores up to TRAIL_CAP=400 world-space positions (wx=levelX, wy=arrowY). Each frame maps pts to screen (screenX = wx - levelX + ARROW_X). Drawn as two passes: soft glow (18px, 22% alpha) + solid bright-green core (5px, 100% alpha). Never fades, never ends — traces the exact wave path the arrow has cut through the level.
-- **Wall Obstacles**: 35 columns of orange/red rectangular blocks cycling 10 patterns; first at worldX=820, spacing ~436px. Each block has glow halo, layered gradient body, yellow warning chevrons.
-- **Spike Obstacles**: Cyan/teal triangular spikes (pointing up from floor or down from ceiling) placed between every wall pair — up to 2 spike clusters per gap. 8 different placement patterns cycled. Makes the game significantly harder.
+- **Wall Obstacles**: 35 columns of orange/red rectangular blocks; first at worldX=820, spacing ~436px. Each wall has exactly ONE narrow gap (82 px) at a designed height — no alternate routes. Each block has glow halo, layered gradient body, yellow warning chevrons.
+- **Spike Obstacles**: Cyan/teal triangular spikes between every wall pair (1 cluster per gap). Placed near floor when path rises, near ceiling when path falls — punish wrong-height flying without blocking the intended route.
 - **Pixel-art Mountains**: Two parallax layers drawn with 10px block silhouettes. Far layer (dark purple, 0.12× parallax), near layer (dark navy, 0.28× parallax). Drawn 3× wide for seamless looping via Graphics setX().
 - **Stars**: 60 seeded pixel-art square stars scattered across the sky.
 - **Collision**: AABB hit test using per-obstacle `hw` (half-width). Arrow hitting ceiling/floor also dies.
@@ -33,7 +33,5 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - **ESC** → toggle pause menu (Resume / Restart)
 
 ## This Turn
-- Arrow shape: fish-tail (swallowtail) back end with two symmetrical forked prongs and V-notch. Arrow is shorter (tip at +12, tailBase at -14 from centre vs old +17/-28).
-- Fish tail drawn as two `fillTriangle` passes (upper fin + lower fin) meeting at a V-notch apex. `apx/apy` perpendicular used to avoid naming collision.
-- Pause menu: ESC toggles pause; `paused` flag stops update loop; `pauseObjs[]` array tracks all pause UI objects for clean destroy on resume. Panel centred at (EW/2, EH/2) with RESUME and RESTART buttons.
-- Previous turns: trail history polyline, fullscreen, arrow centred, pixel mountains, spikes.
+- **Arrow stub shortened**: tail base reduced from -14 to -8 units behind centre; finBack 9→5, finSpread 7→5, notchBack 3→2, shW 4→3. Arrow looks more compact / dart-like.
+- **Single-path level**: 35 explicitly designed gap-centre fractions (one per wall). Each wall now has exactly ONE narrow 82 px gap — no two openings on any wall. Gap centres snake: centre → high → low → centre → low → high, etc. Spike clusters reduced to 1 per gap (from up to 2), placed near floor when path rises and near ceiling when path falls.

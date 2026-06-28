@@ -138,58 +138,55 @@ export class GameScene extends Phaser.Scene {
   // ── Level builder ──────────────────────────────────────────────────────────
   private buildLevel(): void {
     const H = EH;
-    type S = { t: number; b: number };
+    const GAP_H = 82;  // narrow single gap per wall — one route only
 
-    const wallPats: S[][] = [
-      [{ t: 0,          b: 140 }],
-      [{ t: H - 135,    b: H   }],
-      [{ t: H / 2 - 44, b: H / 2 + 44 }],
-      [{ t: 0,          b: 120 }, { t: H - 120, b: H }],
-      [{ t: H * 0.56,   b: H * 0.56 + 84 }],
-      [{ t: H * 0.27,   b: H * 0.27 + 88 }],
-      [{ t: 0,          b: 162 }],
-      [{ t: H - 158,    b: H   }],
-      [{ t: 0,          b: 100 }, { t: H / 2 - 36, b: H / 2 + 36 }],
-      [{ t: H * 0.38,   b: H * 0.38 + 104 }],
+    // Explicitly designed gap-centre fractions for all 35 walls.
+    // Adjacent gaps are always ≤ ~110 px apart (well within 45° reach of ~435 px).
+    // Every wall has exactly ONE passable opening — no alternate routes.
+    const gapFracs = [
+      0.50, 0.36, 0.22, 0.32, 0.50,  // walls  0–4   (start centre → high → low → centre)
+      0.68, 0.78, 0.65, 0.50, 0.34,  // walls  5–9   (dive low)
+      0.22, 0.30, 0.48, 0.68, 0.80,  // walls 10–14  (shoot high → deep low)
+      0.65, 0.50, 0.34, 0.22, 0.32,  // walls 15–19  (recover → high)
+      0.50, 0.68, 0.80, 0.66, 0.50,  // walls 20–24  (sweep low)
+      0.34, 0.22, 0.30, 0.48, 0.68,  // walls 25–29  (rise high)
+      0.80, 0.65, 0.48, 0.30, 0.50,  // walls 30–34  (final dive → centre finish)
     ];
 
-    const gap = Math.round((LEVEL_L - 820 - 600) / (NUM_OBS - 1));
+    const wallSpacing = Math.round((LEVEL_L - 820 - 600) / (NUM_OBS - 1));
 
-    // Wall obstacles
     for (let i = 0; i < NUM_OBS; i++) {
-      const wx = 820 + i * gap;
-      for (const { t, b } of wallPats[i % wallPats.length]) {
-        const h = b - t;
+      const wx     = 820 + i * wallSpacing;
+      const gapCY  = Math.round(H * gapFracs[i]);
+      const gapTop = Math.max(12, gapCY - GAP_H / 2);
+      const gapBot = Math.min(H - 12, gapTop + GAP_H);
+
+      // Top block (above the gap)
+      if (gapTop > 12) {
+        const h   = gapTop;
         const gfx = this.add.graphics().setDepth(2);
         this.paintWall(gfx, h);
-        this.obs.push({ gfx, worldX: wx, cy: t + h / 2, h, hw: OBS_W / 2 });
+        this.obs.push({ gfx, worldX: wx, cy: h / 2, h, hw: OBS_W / 2 });
       }
-    }
 
-    // Spike clusters between every wall pair — makes the game significantly harder
-    for (let i = 0; i < NUM_OBS - 1; i++) {
-      const base = 820 + i * gap;
-      const wx1  = base + Math.round(gap * 0.33);
-      const wx2  = base + Math.round(gap * 0.66);
+      // Bottom block (below the gap)
+      const botH = H - gapBot;
+      if (botH > 12) {
+        const gfx = this.add.graphics().setDepth(2);
+        this.paintWall(gfx, botH);
+        this.obs.push({ gfx, worldX: wx, cy: gapBot + botH / 2, h: botH, hw: OBS_W / 2 });
+      }
 
-      switch (i % 8) {
-        case 0: this.addSpikes(wx1, H - SPK_H / 2, 'up',   3); break;
-        case 1: this.addSpikes(wx1, SPK_H / 2,     'down', 3); break;
-        case 2:
-          this.addSpikes(wx1, H - SPK_H / 2,         'up',   2);
-          this.addSpikes(wx2, SPK_H / 2,             'down', 2);
-          break;
-        case 3: this.addSpikes(wx2, Math.round(H * 0.65), 'up',   2); break;
-        case 4:
-          this.addSpikes(wx1, SPK_H / 2,             'down', 3);
-          this.addSpikes(wx2, H - SPK_H / 2,         'up',   2);
-          break;
-        case 5: this.addSpikes(wx1, Math.round(H * 0.32), 'down', 2); break;
-        case 6: this.addSpikes(wx2, H - SPK_H / 2,  'up',   3); break;
-        case 7:
-          this.addSpikes(wx1, H - SPK_H / 2,         'up',   2);
-          this.addSpikes(wx2, Math.round(H * 0.35),  'down', 2);
-          break;
+      // One spike cluster mid-gap: floor spikes when path goes up, ceiling spikes when path goes down.
+      // Placed far from the intended 45° trajectory so they only punish wrong-height flying.
+      if (i < NUM_OBS - 1) {
+        const sx        = wx + Math.round(wallSpacing * 0.5);
+        const nextFrac  = gapFracs[i + 1];
+        if (nextFrac <= gapFracs[i]) {
+          this.addSpikes(sx, H - SPK_H / 2, 'up',   2);   // floor spikes — path goes up
+        } else {
+          this.addSpikes(sx, SPK_H / 2,     'down', 2);   // ceiling spikes — path goes down
+        }
       }
     }
   }
@@ -274,8 +271,8 @@ export class GameScene extends Phaser.Scene {
     const dx = Math.cos(rad), dy = Math.sin(rad);
     const apx = -dy, apy = dx;   // perpendicular (arrow-local left)
     const HW   = 10;
-    const tbx  = x - dx * 14, tby  = y - dy * 14;   // tail base (shaft end)
-    const tipX = x + dx * 12, tipY = y + dy * 12;   // arrowhead tip
+    const tbx  = x - dx * 8, tby  = y - dy * 8;    // tail base — short stub
+    const tipX = x + dx * 12, tipY = y + dy * 12;  // arrowhead tip
 
     // Halo glow
     this.arrowGfx.fillStyle(0x00ff88, 0.1);
@@ -313,10 +310,10 @@ export class GameScene extends Phaser.Scene {
     // ── Fish tail — two symmetrical forked prongs meeting at a V-notch ────────
     // prong tips: finBack units behind tailBase, spread finSpread laterally
     // notch:      notchBack units behind tailBase (less than finBack → V opens outward)
-    const finBack   = 9;
-    const finSpread = 7;
-    const notchBack = 3;
-    const shW       = 4;   // shaft half-width at tailBase
+    const finBack   = 5;
+    const finSpread = 5;
+    const notchBack = 2;
+    const shW       = 3;   // shaft half-width at tailBase
 
     const ubX = tbx + apx * shW,                          ubY = tby + apy * shW;   // upper shaft edge
     const lbX = tbx - apx * shW,                          lbY = tby - apy * shW;   // lower shaft edge
