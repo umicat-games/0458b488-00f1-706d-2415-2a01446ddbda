@@ -13,7 +13,7 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - **Stars**: 60 seeded pixel-art square stars scattered across the sky.
 - **Collision**: AABB hit test using per-obstacle `hw` (half-width). Ceiling/floor clamp the arrow at y=40 / EH-40 (never kill) — keeps glow halo fully inside the rails. Only obstacles end the run.
 - **Death screen**: fades in with panel; shows `% COMPLETED` at the top, status text, diamond earnings, and a RESTART button. Clicking or pressing SPACE restarts. Win state shows "LEVEL COMPLETE!".
-- **Diamond economy**: `Math.floor(pct / 25)` diamonds earned per run (0 if <25%, 1 at 25%, 2 at 50%, 3 at 75%, 4 at 100%). Stored in module-level `sessionDiamonds` — persists across restarts in the same browser session.
+- **Diamond economy**: Diamonds earned = percentage completed (e.g. 73% → +73 diamonds). Stored in module-level `sessionDiamonds` — persists across restarts in the same browser session.
 - **Speed**: SCROLL = 428 px/s, VSPEED = 428 px/s (exact 45° diagonal).
 - **Level length**: LEVEL_L ≈ 25,220 world-px (820 + 34×700 + 600) with 35 wall columns + ~40 spike clusters.
 - **Camera zoom**: ZOOM = 1.4; all game objects live in effective world space EW × EH ≈ 914 × 514.

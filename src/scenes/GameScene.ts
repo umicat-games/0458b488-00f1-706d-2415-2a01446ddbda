@@ -520,8 +520,8 @@ export class GameScene extends Phaser.Scene {
 
   // ── Death UI ───────────────────────────────────────────────────────────────
   private showDeathUI(pct: number, win: boolean): void {
-    // Award diamonds: 1 per 25% milestone reached (0 if < 25%)
-    const earned = Math.floor(pct / 25);
+    // Award diamonds equal to the percentage reached
+    const earned = pct;
     if (earned > 0) sessionDiamonds += earned;
 
     const cx = EW / 2, cy = EH / 2;
