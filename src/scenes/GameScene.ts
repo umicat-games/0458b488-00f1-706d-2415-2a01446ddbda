@@ -108,23 +108,23 @@ export class GameScene extends Phaser.Scene {
     const drawEscBtn = (hover: boolean): void => {
       this.escBtnGfx.clear();
       // soft glow ring
-      this.escBtnGfx.fillStyle(0x00ff88, 0.08);
+      this.escBtnGfx.fillStyle(0xffffff, 0.06);
       this.escBtnGfx.fillCircle(btnX, btnY, btnR + 5);
       // fill
-      this.escBtnGfx.fillStyle(hover ? 0x1a3d28 : 0x0d2018, 1);
+      this.escBtnGfx.fillStyle(hover ? 0x444444 : 0x1a1a1a, 1);
       this.escBtnGfx.fillCircle(btnX, btnY, btnR);
       // border
-      this.escBtnGfx.lineStyle(1.5, 0x00ff88, hover ? 1 : 0.55);
+      this.escBtnGfx.lineStyle(1.5, 0xffffff, hover ? 1 : 0.55);
       this.escBtnGfx.strokeCircle(btnX, btnY, btnR);
       // two pause bars inside
-      this.escBtnGfx.fillStyle(0x00ff88, hover ? 1 : 0.7);
+      this.escBtnGfx.fillStyle(0xffffff, hover ? 1 : 0.75);
       this.escBtnGfx.fillRect(btnX - 5.5, btnY - 6, 3.5, 12);
       this.escBtnGfx.fillRect(btnX + 2,   btnY - 6, 3.5, 12);
     };
     drawEscBtn(false);
 
     this.escBtnTxt = this.add.text(btnX, btnY + btnR + 7, 'ESC', {
-      fontFamily: 'monospace', fontSize: '8px', color: '#336644',
+      fontFamily: 'monospace', fontSize: '8px', color: '#aaaaaa',
     }).setOrigin(0.5, 0).setDepth(10);
 
     this.escBtnHit = this.add.rectangle(btnX, btnY, (btnR + 5) * 2, (btnR + 5) * 2, 0, 0)
