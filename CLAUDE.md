@@ -48,5 +48,4 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - Fields: `noclip`, `geodeOpen`, `geodeObjs[]`, `noclipTxt`, `customIconsOpen`, `customIconsObjs[]`. All reset in `init()`.
 
 ## This Turn
-- Fixed ESC/P priority in `update()`: now checks `customIconsOpen` first → `geodeOpen` → toggle pause. Pressing ESC/P while CUSTOM ICONS is open closes only that panel (returning to GEODE).
-- Updated CLAUDE.md to reflect: WALL_SPACING=700, GAP_H=110, clamp=40, diamonds, rocket, CUSTOM ICONS, ESC/P priority.
+- Added ESC pause button: medium-small circle (r=16) top-right corner, pause icon (two bars) inside, "ESC" label underneath. Hover brightens the border. Clicking toggles pause. Hidden when player dies or completes the level. Fields: `escBtnGfx`, `escBtnTxt`, `escBtnHit`.

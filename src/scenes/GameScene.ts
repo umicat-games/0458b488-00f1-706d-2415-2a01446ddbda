@@ -58,6 +58,10 @@ export class GameScene extends Phaser.Scene {
   private customIconsOpen = false;
   private customIconsObjs: Phaser.GameObjects.GameObject[] = [];
 
+  private escBtnGfx!: Phaser.GameObjects.Graphics;
+  private escBtnTxt!: Phaser.GameObjects.Text;
+  private escBtnHit!: Phaser.GameObjects.Rectangle;
+
   constructor() { super({ key: 'GameScene' }); }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -94,6 +98,42 @@ export class GameScene extends Phaser.Scene {
     this.noclipTxt = this.add.text(EW - 8, 10, '◈ NOCLIP', {
       fontFamily: 'monospace', fontSize: '10px', color: '#dd44ff',
     }).setOrigin(1, 0).setDepth(10).setVisible(false);
+
+    // ── ESC / Pause button — top-right corner ────────────────────────────────
+    const btnR = 16;          // circle radius
+    const btnX = EW - 22;     // centre X
+    const btnY = 24;          // centre Y
+
+    this.escBtnGfx = this.add.graphics().setDepth(10);
+    const drawEscBtn = (hover: boolean): void => {
+      this.escBtnGfx.clear();
+      // soft glow ring
+      this.escBtnGfx.fillStyle(0x00ff88, 0.08);
+      this.escBtnGfx.fillCircle(btnX, btnY, btnR + 5);
+      // fill
+      this.escBtnGfx.fillStyle(hover ? 0x1a3d28 : 0x0d2018, 1);
+      this.escBtnGfx.fillCircle(btnX, btnY, btnR);
+      // border
+      this.escBtnGfx.lineStyle(1.5, 0x00ff88, hover ? 1 : 0.55);
+      this.escBtnGfx.strokeCircle(btnX, btnY, btnR);
+      // two pause bars inside
+      this.escBtnGfx.fillStyle(0x00ff88, hover ? 1 : 0.7);
+      this.escBtnGfx.fillRect(btnX - 5.5, btnY - 6, 3.5, 12);
+      this.escBtnGfx.fillRect(btnX + 2,   btnY - 6, 3.5, 12);
+    };
+    drawEscBtn(false);
+
+    this.escBtnTxt = this.add.text(btnX, btnY + btnR + 7, 'ESC', {
+      fontFamily: 'monospace', fontSize: '8px', color: '#336644',
+    }).setOrigin(0.5, 0).setDepth(10);
+
+    this.escBtnHit = this.add.rectangle(btnX, btnY, (btnR + 5) * 2, (btnR + 5) * 2, 0, 0)
+      .setDepth(11).setInteractive({ useHandCursor: true });
+    this.escBtnHit.on('pointerover',  () => drawEscBtn(true));
+    this.escBtnHit.on('pointerout',   () => drawEscBtn(false));
+    this.escBtnHit.on('pointerdown',  () => {
+      if (!this.dead) this.togglePause();
+    });
   }
 
   // ── Sky ────────────────────────────────────────────────────────────────────
@@ -508,6 +548,9 @@ export class GameScene extends Phaser.Scene {
   private die(): void {
     if (this.dead) return;
     this.dead = true;
+    this.escBtnGfx.setVisible(false);
+    this.escBtnTxt.setVisible(false);
+    this.escBtnHit.setVisible(false).disableInteractive();
     this.arrowGfx.clear();
     this.trailGfx.clear();
     const ex = this.add.graphics().setDepth(10);
@@ -1106,6 +1149,9 @@ export class GameScene extends Phaser.Scene {
     this.levelX += SCROLL * dt;
     if (this.levelX >= LEVEL_L) {
       this.dead = true;
+      this.escBtnGfx.setVisible(false);
+      this.escBtnTxt.setVisible(false);
+      this.escBtnHit.setVisible(false).disableInteractive();
       this.showDeathUI(100, true);
       return;
     }
