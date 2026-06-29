@@ -48,4 +48,6 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - Fields: `noclip`, `geodeOpen`, `geodeObjs[]`, `noclipTxt`, `customIconsOpen`, `customIconsObjs[]`. All reset in `init()`.
 
 ## This Turn
-- Added ESC pause button: medium-small circle (r=16) top-right corner, pause icon (two bars) inside, "ESC" label underneath. Hover brightens the border. Clicking toggles pause. Hidden when player dies or completes the level. Fields: `escBtnGfx`, `escBtnTxt`, `escBtnHit`.
+- Added home screen shown at game start and via MENU button. Shows "GEOMETRY DASH" title (large, green glow) with "REBIRTH" below-right. PLAY button + SPACE key dismiss it and start play.
+- Death screen now has two buttons: RESTART (jumps straight back into play) and MENU (returns to home screen).
+- `init(data?)` accepts `skipHome: true` to bypass the home screen on restart. `atHome` field gates `update()` while on the home screen.

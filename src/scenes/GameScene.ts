@@ -62,10 +62,13 @@ export class GameScene extends Phaser.Scene {
   private escBtnTxt!: Phaser.GameObjects.Text;
   private escBtnHit!: Phaser.GameObjects.Rectangle;
 
+  private atHome = true;
+  private homeObjs: Phaser.GameObjects.GameObject[] = [];
+
   constructor() { super({ key: 'GameScene' }); }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
-  init(): void {
+  init(data?: { skipHome?: boolean }): void {
     this.levelX  = 0;
     this.arrowY  = EH / 2;
     this.goingUp = false;
@@ -79,6 +82,9 @@ export class GameScene extends Phaser.Scene {
     this.geodeObjs = [];
     this.customIconsOpen = false;
     this.customIconsObjs = [];
+    // skipHome=true → comes from RESTART button (skip home screen, jump straight in)
+    this.atHome  = !(data?.skipHome);
+    this.homeObjs = [];
   }
 
   create(): void {
@@ -132,8 +138,17 @@ export class GameScene extends Phaser.Scene {
     this.escBtnHit.on('pointerover',  () => drawEscBtn(true));
     this.escBtnHit.on('pointerout',   () => drawEscBtn(false));
     this.escBtnHit.on('pointerdown',  () => {
-      if (!this.dead) this.togglePause();
+      if (!this.dead && !this.atHome) this.togglePause();
     });
+
+    if (this.atHome) {
+      // Show home screen — ESC button hidden until play begins
+      this.escBtnGfx.setVisible(false);
+      this.escBtnTxt.setVisible(false);
+      this.escBtnHit.setVisible(false).disableInteractive();
+      this.showHomeScreen();
+    }
+    // else: skipHome=true — ESC button is already visible (default), play starts immediately
   }
 
   // ── Sky ────────────────────────────────────────────────────────────────────
@@ -561,6 +576,97 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(460, () => this.showDeathUI(pct, false));
   }
 
+  // ── Home Screen ───────────────────────────────────────────────────────────
+  private showHomeScreen(): void {
+    this.atHome  = true;
+    this.homeObjs = [];
+    const cx = EW / 2, cy = EH / 2;
+
+    // Full-screen dim with a subtle gradient feel
+    const dim = this.add.rectangle(cx, cy, EW, EH, 0x000000, 0.72).setDepth(500).setAlpha(0);
+    this.tweens.add({ targets: dim, alpha: 1, duration: 350 });
+    this.homeObjs.push(dim);
+
+    // ── Title — "GEOMETRY DASH" ───────────────────────────────────────────
+    // Shadow layer
+    const titleShadow = this.add.text(cx + 3, cy - 62, 'GEOMETRY DASH', {
+      fontFamily: 'sans-serif', fontSize: '48px', fontStyle: 'bold', color: '#003300',
+    }).setOrigin(0.5).setDepth(501).setAlpha(0);
+    this.homeObjs.push(titleShadow);
+
+    const titleTxt = this.add.text(cx, cy - 65, 'GEOMETRY DASH', {
+      fontFamily: 'sans-serif', fontSize: '48px', fontStyle: 'bold', color: '#00ff88',
+      shadow: { offsetX: 0, offsetY: 0, color: '#00ff88', blur: 18, fill: true },
+    }).setOrigin(0.5).setDepth(502).setAlpha(0);
+    this.homeObjs.push(titleTxt);
+
+    // ── "REBIRTH" — smaller, right-aligned below title ────────────────────
+    const rebirthTxt = this.add.text(cx + 118, cy - 30, 'REBIRTH', {
+      fontFamily: 'sans-serif', fontSize: '18px', fontStyle: 'bold italic', color: '#aaffdd',
+      shadow: { offsetX: 0, offsetY: 0, color: '#00cc66', blur: 10, fill: true },
+    }).setOrigin(1, 0).setDepth(502).setAlpha(0);
+    this.homeObjs.push(rebirthTxt);
+
+    // Decorative line under the title block
+    const lineGfx = this.add.graphics().setDepth(502).setAlpha(0);
+    lineGfx.lineStyle(1.5, 0x00ff88, 0.35);
+    lineGfx.beginPath();
+    lineGfx.moveTo(cx - 190, cy - 10);
+    lineGfx.lineTo(cx + 190, cy - 10);
+    lineGfx.strokePath();
+    this.homeObjs.push(lineGfx);
+
+    this.tweens.add({ targets: [titleShadow, titleTxt, rebirthTxt, lineGfx], alpha: 1, duration: 420, delay: 80 });
+
+    // ── PLAY button ───────────────────────────────────────────────────────
+    const bw = 200, bh = 56;
+    const bcy = cy + 48;
+
+    const playGfx = this.add.graphics().setDepth(502).setAlpha(0);
+    const drawPlay = (hover: boolean): void => {
+      playGfx.clear();
+      playGfx.fillStyle(hover ? 0x00cc55 : 0x008f3c, 1);
+      playGfx.fillRoundedRect(cx - bw / 2, bcy - bh / 2, bw, bh, 12);
+      playGfx.lineStyle(2.5, 0x00ff88, 1);
+      playGfx.strokeRoundedRect(cx - bw / 2, bcy - bh / 2, bw, bh, 12);
+    };
+    drawPlay(false);
+    this.homeObjs.push(playGfx);
+
+    const playTxt = this.add.text(cx, bcy, 'PLAY', {
+      fontFamily: 'sans-serif', fontSize: '26px', fontStyle: 'bold', color: '#ffffff',
+    }).setOrigin(0.5).setDepth(503).setAlpha(0);
+    this.homeObjs.push(playTxt);
+
+    const hintTxt = this.add.text(cx, bcy + bh / 2 + 13, 'press SPACE to start', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#336644',
+    }).setOrigin(0.5).setDepth(502).setAlpha(0);
+    this.homeObjs.push(hintTxt);
+
+    this.tweens.add({ targets: [playGfx, playTxt, hintTxt], alpha: 1, duration: 300, delay: 220 });
+
+    const startGame = (): void => {
+      if (!this.atHome) return;
+      this.atHome = false;
+      for (const o of this.homeObjs) o.destroy();
+      this.homeObjs = [];
+      // Show ESC button
+      this.escBtnGfx.setVisible(true);
+      this.escBtnTxt.setVisible(true);
+      this.escBtnHit.setVisible(true).setInteractive({ useHandCursor: true });
+    };
+
+    const playHit = this.add.rectangle(cx, bcy, bw, bh, 0, 0)
+      .setDepth(504).setInteractive({ useHandCursor: true });
+    playHit.on('pointerover',  () => { drawPlay(true);  this.tweens.add({ targets: [playGfx, playTxt], scaleX: 1.06, scaleY: 1.06, duration: 80 }); });
+    playHit.on('pointerout',   () => { drawPlay(false); this.tweens.add({ targets: [playGfx, playTxt], scaleX: 1,    scaleY: 1,    duration: 80 }); });
+    playHit.on('pointerdown',  () => startGame());
+    this.homeObjs.push(playHit);
+
+    // SPACE also starts
+    this.input.keyboard!.once('keydown-SPACE', () => { if (this.atHome) startGame(); });
+  }
+
   // ── Death UI ───────────────────────────────────────────────────────────────
   private showDeathUI(pct: number, win: boolean): void {
     // Award diamonds equal to the percentage reached
@@ -602,32 +708,63 @@ export class GameScene extends Phaser.Scene {
     ).setOrigin(0.5).setDepth(202).setAlpha(0);
     this.tweens.add({ targets: [pctTxt, subLbl, divGfx, statusTxt, dmEarnedTxt], alpha: 1, duration: 280, delay: 100 });
 
-    const bw = 176, bh = 52;
+    // ── Two buttons: RESTART | MENU ───────────────────────────────────────
+    const bh = 48, gap = 12;
+    const rbw = 160, mbw = 120;
+    const rowW = rbw + gap + mbw;
     const bcy = py + ph / 2 + 42;
-    const btnGfx = this.add.graphics().setDepth(202).setAlpha(0);
-    const drawBtn = (hover: boolean): void => {
-      btnGfx.clear();
-      btnGfx.fillStyle(hover ? 0x00cc55 : 0x008f3c, 1);
-      btnGfx.fillRoundedRect(cx - bw / 2, bcy - bh / 2, bw, bh, 11);
-      btnGfx.lineStyle(2, 0x00ff88, 1);
-      btnGfx.strokeRoundedRect(cx - bw / 2, bcy - bh / 2, bw, bh, 11);
+    const rL = cx - rowW / 2;           // restart left edge
+    const mL = rL + rbw + gap;          // menu left edge
+    const rCX = rL + rbw / 2;
+    const mCX = mL + mbw / 2;
+
+    // Restart
+    const restartGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    const drawRestart = (hover: boolean): void => {
+      restartGfx.clear();
+      restartGfx.fillStyle(hover ? 0x00cc55 : 0x008f3c, 1);
+      restartGfx.fillRoundedRect(rL, bcy - bh / 2, rbw, bh, 10);
+      restartGfx.lineStyle(2, 0x00ff88, 1);
+      restartGfx.strokeRoundedRect(rL, bcy - bh / 2, rbw, bh, 10);
     };
-    drawBtn(false);
-    const btnTxt = this.add.text(cx, bcy, 'RESTART', {
-      fontFamily: 'sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
+    drawRestart(false);
+    const restartTxt = this.add.text(rCX, bcy, 'RESTART', {
+      fontFamily: 'sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5).setDepth(203).setAlpha(0);
-    const hintTxt = this.add.text(cx, bcy + bh / 2 + 13, 'or press SPACE', {
+
+    const restartHit = this.add.rectangle(rCX, bcy, rbw, bh, 0, 0)
+      .setDepth(204).setInteractive({ useHandCursor: true });
+    restartHit.on('pointerover', () => { drawRestart(true);  this.tweens.add({ targets: [restartGfx, restartTxt], scaleX: 1.05, scaleY: 1.05, duration: 80 }); });
+    restartHit.on('pointerout',  () => { drawRestart(false); this.tweens.add({ targets: [restartGfx, restartTxt], scaleX: 1,    scaleY: 1,    duration: 80 }); });
+    restartHit.on('pointerdown', () => this.scene.restart({ skipHome: true }));
+
+    // Menu
+    const menuGfx = this.add.graphics().setDepth(202).setAlpha(0);
+    const drawMenu = (hover: boolean): void => {
+      menuGfx.clear();
+      menuGfx.fillStyle(hover ? 0x2a2a3a : 0x14141f, 1);
+      menuGfx.fillRoundedRect(mL, bcy - bh / 2, mbw, bh, 10);
+      menuGfx.lineStyle(2, 0x8888bb, hover ? 1 : 0.6);
+      menuGfx.strokeRoundedRect(mL, bcy - bh / 2, mbw, bh, 10);
+    };
+    drawMenu(false);
+    const menuTxt = this.add.text(mCX, bcy, 'MENU', {
+      fontFamily: 'sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#aaaacc',
+    }).setOrigin(0.5).setDepth(203).setAlpha(0);
+
+    const menuHit = this.add.rectangle(mCX, bcy, mbw, bh, 0, 0)
+      .setDepth(204).setInteractive({ useHandCursor: true });
+    menuHit.on('pointerover', () => { drawMenu(true);  this.tweens.add({ targets: [menuGfx, menuTxt], scaleX: 1.05, scaleY: 1.05, duration: 80 }); });
+    menuHit.on('pointerout',  () => { drawMenu(false); this.tweens.add({ targets: [menuGfx, menuTxt], scaleX: 1,    scaleY: 1,    duration: 80 }); });
+    menuHit.on('pointerdown', () => this.scene.restart());   // atHome=true by default → shows home screen
+
+    const hintTxt = this.add.text(cx, bcy + bh / 2 + 13, 'or press SPACE to restart', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#337755',
     }).setOrigin(0.5).setDepth(202).setAlpha(0);
-    this.tweens.add({ targets: [btnGfx, btnTxt, hintTxt], alpha: 1, duration: 280, delay: 200 });
+    this.tweens.add({ targets: [restartGfx, restartTxt, menuGfx, menuTxt, hintTxt], alpha: 1, duration: 280, delay: 200 });
 
-    const hit = this.add.rectangle(cx, bcy, bw, bh, 0x000000, 0)
-      .setDepth(204).setInteractive({ useHandCursor: true });
-    hit.on('pointerover', () => { drawBtn(true);  this.tweens.add({ targets: [btnGfx, btnTxt], scaleX: 1.05, scaleY: 1.05, duration: 80 }); });
-    hit.on('pointerout',  () => { drawBtn(false); this.tweens.add({ targets: [btnGfx, btnTxt], scaleX: 1.0,  scaleY: 1.0,  duration: 80 }); });
-    hit.on('pointerdown', () => this.scene.restart());
     this.time.delayedCall(500, () => {
-      this.input.keyboard!.once('keydown-SPACE', () => this.scene.restart());
+      this.input.keyboard!.once('keydown-SPACE', () => this.scene.restart({ skipHome: true }));
     });
   }
 
@@ -792,7 +929,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(204).setInteractive({ useHandCursor: true });
     restartHit.on('pointerover', () => drawRestart(true));
     restartHit.on('pointerout',  () => drawRestart(false));
-    restartHit.on('pointerdown', () => this.scene.restart());
+    restartHit.on('pointerdown', () => this.scene.restart({ skipHome: true }));
     this.pauseObjs.push(restartHit);
 
     // Hint text
@@ -1143,7 +1280,7 @@ export class GameScene extends Phaser.Scene {
       else { this.togglePause(); }
       return;
     }
-    if (this.dead || this.paused) return;
+    if (this.dead || this.paused || this.atHome) return;
     const dt = delta / 1000;
 
     this.levelX += SCROLL * dt;
