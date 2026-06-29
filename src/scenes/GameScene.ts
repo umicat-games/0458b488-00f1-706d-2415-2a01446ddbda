@@ -12,8 +12,9 @@ const ARROW_X = Math.round(EW / 2);   // ≈ 457 — horizontally centred
 const OBS_W   = 44;
 const SPK_W   = 26;   // single spike width
 const SPK_H   = 50;   // single spike height
-const LEVEL_L    = 16200;
+const WALL_SPACING = 580;                               // px between wall columns
 const NUM_OBS    = 35;
+const LEVEL_L    = 820 + (NUM_OBS - 1) * WALL_SPACING + 600;  // ≈ 21,220
 const TRAIL_CAP  = 400;  // max trail history points (≈ 6 s at 60 fps)
 const MTN_B      = 10;   // pixel-art mountain block size
 
@@ -168,7 +169,7 @@ export class GameScene extends Phaser.Scene {
       0.80, 0.65, 0.48, 0.30, 0.50,  // walls 30–34  (final dive → centre finish)
     ];
 
-    const wallSpacing = Math.round((LEVEL_L - 820 - 600) / (NUM_OBS - 1));
+    const wallSpacing = WALL_SPACING;
 
     for (let i = 0; i < NUM_OBS; i++) {
       const wx     = 820 + i * wallSpacing;
@@ -810,10 +811,8 @@ export class GameScene extends Phaser.Scene {
     this.goingUp = this.space.isDown;
     this.arrowY += (this.goingUp ? -1 : 1) * VSPEED * dt;
 
-    if (this.arrowY < 10 || this.arrowY > EH - 10) {
-      if (this.noclip) { this.arrowY = Phaser.Math.Clamp(this.arrowY, 10, EH - 10); }
-      else { this.die(); return; }
-    }
+    // Ceiling & floor — clamp rather than kill; only obstacles end the run
+    this.arrowY = Phaser.Math.Clamp(this.arrowY, 10, EH - 10);
 
     this.syncObs();
     if (!this.noclip && this.checkHits()) { this.die(); return; }
