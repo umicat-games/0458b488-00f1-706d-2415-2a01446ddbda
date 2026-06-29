@@ -5,15 +5,17 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 
 ## Implemented Features
 - **Arrow**: drawn with Graphics (green shaft, blue head, glow halo). Rotates ±45° based on SPACE state. Positioned at horizontal center of screen (ARROW_X = EW/2 ≈ 457).
+- **Rocket icon**: alternate player icon drawn with Graphics (silver body, red nose, orange fins, yellow flame, cyan porthole). Selected via CUSTOM ICONS in GEODE. Replaces the arrow during play.
 - **Trail**: persistent solid history-based polyline. Stores up to TRAIL_CAP=400 world-space positions (wx=levelX, wy=arrowY). Each frame maps pts to screen (screenX = wx - levelX + ARROW_X). Drawn as two passes: soft glow (18px, 22% alpha) + solid bright-green core (5px, 100% alpha). Never fades, never ends — traces the exact wave path the arrow has cut through the level.
-- **Wall Obstacles**: 35 columns of orange/red rectangular blocks; first at worldX=820, spacing WALL_SPACING=580px. Each wall has exactly ONE narrow gap (82 px) at a designed height — no alternate routes. Each block has glow halo, layered gradient body, yellow warning chevrons.
+- **Wall Obstacles**: 35 columns of orange/red rectangular blocks; first at worldX=820, spacing WALL_SPACING=700px. Each wall has exactly ONE gap (GAP_H=110px) at a designed height. Each block has glow halo, layered gradient body, yellow warning chevrons.
 - **Spike Obstacles**: Cyan/teal triangular spikes between every wall pair (1 cluster per gap). Placed near floor when path rises, near ceiling when path falls — punish wrong-height flying without blocking the intended route.
 - **Pixel-art Mountains**: Two parallax layers drawn with 10px block silhouettes. Far layer (dark purple, 0.12× parallax), near layer (dark navy, 0.28× parallax). Drawn 3× wide for seamless looping via Graphics setX().
 - **Stars**: 60 seeded pixel-art square stars scattered across the sky.
-- **Collision**: AABB hit test using per-obstacle `hw` (half-width). Ceiling/floor clamp the arrow at y=32 / EH-32 (never kill) — keeps glow halo fully inside the rails. Only obstacles end the run.
-- **Death screen**: fades in with panel; shows `% COMPLETED` at the top, status text, and a RESTART button. Clicking or pressing SPACE restarts. Win state shows "LEVEL COMPLETE!".
+- **Collision**: AABB hit test using per-obstacle `hw` (half-width). Ceiling/floor clamp the arrow at y=40 / EH-40 (never kill) — keeps glow halo fully inside the rails. Only obstacles end the run.
+- **Death screen**: fades in with panel; shows `% COMPLETED` at the top, status text, diamond earnings, and a RESTART button. Clicking or pressing SPACE restarts. Win state shows "LEVEL COMPLETE!".
+- **Diamond economy**: `Math.floor(pct / 25)` diamonds earned per run (0 if <25%, 1 at 25%, 2 at 50%, 3 at 75%, 4 at 100%). Stored in module-level `sessionDiamonds` — persists across restarts in the same browser session.
 - **Speed**: SCROLL = 428 px/s, VSPEED = 428 px/s (exact 45° diagonal).
-- **Level length**: LEVEL_L ≈ 21,220 world-px (820 + 34×580 + 600) with 35 wall columns + ~40 spike clusters.
+- **Level length**: LEVEL_L ≈ 25,220 world-px (820 + 34×700 + 600) with 35 wall columns + ~40 spike clusters.
 - **Camera zoom**: ZOOM = 1.4; all game objects live in effective world space EW × EH ≈ 914 × 514.
 
 ## Key Implementation Details
@@ -24,20 +26,27 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - `farMtns` and `nearMtns`: Graphics objects drawn 3× wide, repositioned via setX() each frame.
 - `ObsBlock.hw`: per-obstacle half-width (walls use OBS_W/2, spikes use count*SPK_W/2).
 - `init()` resets all state so `scene.restart()` works cleanly.
-- Trail: straight 45° line, no position history — redrawn each frame from arrow backward.
+- Trail: world-space position history stored in `trailPts[]`, redrawn each frame.
 - Death delayed 460ms to show explosion tween first.
+- Module-level `sessionDiamonds` and `sessionIconMode` persist across `scene.restart()`.
+- Gap boundaries and ceiling/floor clamp both use 40px margin so all gaps are always reachable.
 
 ## Controls
-- **SPACE held** → arrow moves up-right at 45°
-- **SPACE released** → arrow moves down-right at 45°
-- **ESC / P** → toggle pause menu; if GEODE is open, either key closes GEODE first
+- **SPACE held** → player moves up-right at 45°
+- **SPACE released** → player moves down-right at 45°
+- **ESC / P** → if CUSTOM ICONS open: close it; else if GEODE open: close GEODE; else toggle pause
 
 ## GEODE Panel (cheat menu)
 - Skull square button (46×46, dark red, pixel-art skull icon) sits to the left of RESTART in the pause menu.
 - Opens the GEODE sub-panel: dark violet theme, `G E O D E` spaced monospace title with purple glow shadow.
-- **NOCLIP** toggle: when ON, collision and ceiling/floor death are bypassed (arrow clamps at boundary instead). A `◈ NOCLIP` indicator shows top-right during play.
-- `← BACK` button and ESC close GEODE and return to the pause menu.
-- Fields: `noclip`, `geodeOpen`, `geodeObjs[]`, `noclipTxt`. All reset in `init()`.
+- **Diamond counter**: `◈ N` shown top-right of panel.
+- **NOCLIP** toggle: when ON, collision bypassed (arrow clamps at boundary). A `◈ NOCLIP` indicator shows top-right during play.
+- **CUSTOM ICONS**: locked at <25 diamonds (shows "◈ X / 25 to unlock"); unlocked shows "CHOOSE ›".
+  - Opens CUSTOM ICONS panel (cyan theme): two 76×76 icon buttons — ARROW and ROCKET.
+  - Clicking sets `sessionIconMode`; panel closes+reopens to show updated selection.
+- `← BACK` button and ESC/P close the active sub-panel and return to the layer beneath.
+- Fields: `noclip`, `geodeOpen`, `geodeObjs[]`, `noclipTxt`, `customIconsOpen`, `customIconsObjs[]`. All reset in `init()`.
 
 ## This Turn
-- **GEODE cheat panel**: skull square button added to the left of RESTART in the pause menu; opens a violet GEODE sub-menu with a NOCLIP toggle and `← BACK` button. ESC closes GEODE before closing pause.
+- Fixed ESC/P priority in `update()`: now checks `customIconsOpen` first → `geodeOpen` → toggle pause. Pressing ESC/P while CUSTOM ICONS is open closes only that panel (returning to GEODE).
+- Updated CLAUDE.md to reflect: WALL_SPACING=700, GAP_H=110, clamp=40, diamonds, rocket, CUSTOM ICONS, ESC/P priority.

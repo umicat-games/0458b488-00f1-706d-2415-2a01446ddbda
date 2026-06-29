@@ -12,11 +12,15 @@ const ARROW_X = Math.round(EW / 2);   // ≈ 457 — horizontally centred
 const OBS_W   = 44;
 const SPK_W   = 26;   // single spike width
 const SPK_H   = 50;   // single spike height
-const WALL_SPACING = 580;                               // px between wall columns
+const WALL_SPACING = 700;                               // px between wall columns
 const NUM_OBS    = 35;
 const LEVEL_L    = 820 + (NUM_OBS - 1) * WALL_SPACING + 600;  // ≈ 21,220
 const TRAIL_CAP  = 400;  // max trail history points (≈ 6 s at 60 fps)
 const MTN_B      = 10;   // pixel-art mountain block size
+
+// ── Session state — persists across scene restarts within a session ────────────
+let sessionDiamonds = 0;
+let sessionIconMode: 'arrow' | 'rocket' = 'arrow';
 
 interface ObsBlock {
   gfx:   Phaser.GameObjects.Graphics;
@@ -51,6 +55,9 @@ export class GameScene extends Phaser.Scene {
   private geodeObjs: Phaser.GameObjects.GameObject[] = [];
   private noclipTxt!: Phaser.GameObjects.Text;
 
+  private customIconsOpen = false;
+  private customIconsObjs: Phaser.GameObjects.GameObject[] = [];
+
   constructor() { super({ key: 'GameScene' }); }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -66,6 +73,8 @@ export class GameScene extends Phaser.Scene {
     this.noclip    = false;
     this.geodeOpen = false;
     this.geodeObjs = [];
+    this.customIconsOpen = false;
+    this.customIconsObjs = [];
   }
 
   create(): void {
@@ -154,7 +163,7 @@ export class GameScene extends Phaser.Scene {
   // ── Level builder ──────────────────────────────────────────────────────────
   private buildLevel(): void {
     const H = EH;
-    const GAP_H = 82;  // narrow single gap per wall — one route only
+    const GAP_H = 110;  // gap per wall — wide enough to be fair
 
     // Explicitly designed gap-centre fractions for all 35 walls.
     // Adjacent gaps are always ≤ ~110 px apart (well within 45° reach of ~435 px).
@@ -174,8 +183,8 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < NUM_OBS; i++) {
       const wx     = 820 + i * wallSpacing;
       const gapCY  = Math.round(H * gapFracs[i]);
-      const gapTop = Math.max(32, gapCY - GAP_H / 2);
-      const gapBot = Math.min(H - 32, gapTop + GAP_H);
+      const gapTop = Math.max(40, gapCY - GAP_H / 2);
+      const gapBot = Math.min(H - 40, gapTop + GAP_H);
 
       // Top block (above the gap)
       if (gapTop > 12) {
@@ -281,6 +290,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Arrow (shorter body + symmetrical fish-tail) ───────────────────────────
   private paintArrow(): void {
+    if (sessionIconMode === 'rocket') { this.paintRocket(); return; }
     this.arrowGfx.clear();
     const x = ARROW_X, y = this.arrowY;
     const rad = Phaser.Math.DegToRad(this.goingUp ? -45 : 45);
@@ -357,6 +367,93 @@ export class GameScene extends Phaser.Scene {
     this.arrowGfx.strokePath();
   }
 
+  // ── Rocket icon (replaces arrow when CUSTOM ICONS → ROCKET is selected) ─────
+  private paintRocket(): void {
+    this.arrowGfx.clear();
+    const x = ARROW_X, y = this.arrowY;
+    const rad = Phaser.Math.DegToRad(this.goingUp ? -45 : 45);
+    const dx = Math.cos(rad), dy = Math.sin(rad);   // forward direction
+    const px = -dy, py = dx;                          // perpendicular (left)
+
+    // Helper: world position fwd units forward + side units perpendicular
+    const pt = (f: number, s: number): [number, number] =>
+      [x + dx * f + px * s, y + dy * f + py * s];
+
+    // Glow halo (orange tint)
+    this.arrowGfx.fillStyle(0xff8800, 0.12);
+    this.arrowGfx.fillCircle(x, y, 28);
+
+    // Body (silver/white) — two triangles forming a quadrilateral
+    const [bTLx, bTLy] = pt(13,  5.5);
+    const [bTRx, bTRy] = pt(13, -5.5);
+    const [bBLx, bBLy] = pt(-11,  5.5);
+    const [bBRx, bBRy] = pt(-11, -5.5);
+    this.arrowGfx.fillStyle(0xccd4e0, 1);
+    this.arrowGfx.fillTriangle(bTLx, bTLy, bBLx, bBLy, bTRx, bTRy);
+    this.arrowGfx.fillTriangle(bBLx, bBLy, bBRx, bBRy, bTRx, bTRy);
+
+    // Body highlight streak
+    this.arrowGfx.fillStyle(0xffffff, 0.35);
+    const [hTLx, hTLy] = pt(13, 1.5);
+    const [hTRx, hTRy] = pt(13, 4.5);
+    const [hBLx, hBLy] = pt(-11, 1.5);
+    const [hBRx, hBRy] = pt(-11, 4.5);
+    this.arrowGfx.fillTriangle(hTLx, hTLy, hBLx, hBLy, hTRx, hTRy);
+    this.arrowGfx.fillTriangle(hBLx, hBLy, hBRx, hBRy, hTRx, hTRy);
+
+    // Nose cone (bright red)
+    const [ntx, nty] = pt(22, 0);
+    this.arrowGfx.fillStyle(0xff2200, 1);
+    this.arrowGfx.fillTriangle(ntx, nty, bTLx, bTLy, bTRx, bTRy);
+    this.arrowGfx.fillStyle(0xff6644, 0.5);
+    const [nhLx, nhLy] = pt(13, 2); const [nhRx, nhRy] = pt(13, 5.5);
+    this.arrowGfx.fillTriangle(ntx, nty, nhLx, nhLy, nhRx, nhRy);
+
+    // Porthole
+    const [wx, wy] = pt(4, 0);
+    this.arrowGfx.fillStyle(0x0077aa, 1);
+    this.arrowGfx.fillCircle(wx, wy, 3.5);
+    this.arrowGfx.fillStyle(0x55ddff, 0.7);
+    const [wHx, wHy] = pt(5.2, 1.2);
+    this.arrowGfx.fillCircle(wHx, wHy, 1.5);
+
+    // Left fin (+perpendicular side)
+    const [fl1x, fl1y] = pt(-7,  5.5);
+    const [fl2x, fl2y] = pt(-7,  14);
+    const [fl3x, fl3y] = pt(-15,  5.5);
+    this.arrowGfx.fillStyle(0xff5500, 1);
+    this.arrowGfx.fillTriangle(fl1x, fl1y, fl2x, fl2y, fl3x, fl3y);
+
+    // Right fin (-perpendicular side)
+    const [fr1x, fr1y] = pt(-7, -5.5);
+    const [fr2x, fr2y] = pt(-7, -14);
+    const [fr3x, fr3y] = pt(-15, -5.5);
+    this.arrowGfx.fillStyle(0xff5500, 1);
+    this.arrowGfx.fillTriangle(fr1x, fr1y, fr2x, fr2y, fr3x, fr3y);
+
+    // Flame (outer yellow)
+    const [f1x, f1y] = pt(-21, 0);
+    const [f2x, f2y] = pt(-11, 3.5); const [f3x, f3y] = pt(-11, -3.5);
+    this.arrowGfx.fillStyle(0xffcc00, 0.95);
+    this.arrowGfx.fillTriangle(f1x, f1y, f2x, f2y, f3x, f3y);
+    // Flame (inner white core)
+    const [fi1x, fi1y] = pt(-17, 0);
+    const [fi2x, fi2y] = pt(-11, 2); const [fi3x, fi3y] = pt(-11, -2);
+    this.arrowGfx.fillStyle(0xffffff, 0.72);
+    this.arrowGfx.fillTriangle(fi1x, fi1y, fi2x, fi2y, fi3x, fi3y);
+
+    // Outline
+    this.arrowGfx.lineStyle(1, 0x889aaa, 0.5);
+    this.arrowGfx.beginPath();
+    this.arrowGfx.moveTo(ntx, nty);
+    this.arrowGfx.lineTo(bTLx, bTLy);
+    this.arrowGfx.lineTo(bBLx, bBLy);
+    this.arrowGfx.lineTo(bBRx, bBRy);
+    this.arrowGfx.lineTo(bTRx, bTRy);
+    this.arrowGfx.closePath();
+    this.arrowGfx.strokePath();
+  }
+
   // ── Trail — persistent solid path following the arrow ─────────────────────
   // Records the arrow's world position every frame and draws it as a solid
   // connected line that scrolls with the level (never fades, never ends).
@@ -423,6 +520,10 @@ export class GameScene extends Phaser.Scene {
 
   // ── Death UI ───────────────────────────────────────────────────────────────
   private showDeathUI(pct: number, win: boolean): void {
+    // Award diamonds: 1 per 25% milestone reached (0 if < 25%)
+    const earned = Math.floor(pct / 25);
+    if (earned > 0) sessionDiamonds += earned;
+
     const cx = EW / 2, cy = EH / 2;
     const pw = 370, ph = 254;
     const px = cx - pw / 2, py = cy - ph / 2;
@@ -452,7 +553,11 @@ export class GameScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '16px', fontStyle: 'bold',
       color: win ? '#00ff88' : '#ff5533',
     }).setOrigin(0.5).setDepth(202).setAlpha(0);
-    this.tweens.add({ targets: [pctTxt, subLbl, divGfx, statusTxt], alpha: 1, duration: 280, delay: 100 });
+    const dmEarnedTxt = this.add.text(cx, py + 133,
+      earned > 0 ? `+${earned} ◈  (total: ${sessionDiamonds})` : `◈ ${sessionDiamonds} diamonds`,
+      { fontFamily: 'monospace', fontSize: '10px', color: earned > 0 ? '#44ccff' : '#336655' },
+    ).setOrigin(0.5).setDepth(202).setAlpha(0);
+    this.tweens.add({ targets: [pctTxt, subLbl, divGfx, statusTxt, dmEarnedTxt], alpha: 1, duration: 280, delay: 100 });
 
     const bw = 176, bh = 52;
     const bcy = py + ph / 2 + 42;
@@ -661,7 +766,7 @@ export class GameScene extends Phaser.Scene {
     this.geodeOpen = true;
 
     const cx = EW / 2, cy = EH / 2;
-    const pw = 300, ph = 200;
+    const pw = 300, ph = 254;
     const pL = cx - pw / 2, pT = cy - ph / 2;
 
     // Dim over pause panel
@@ -680,13 +785,19 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: panelGfx, alpha: 1, duration: 180 });
     this.geodeObjs.push(panelGfx);
 
-    // Title — "G E O D E" spaced monospace for that robotic look
-    const titleTxt = this.add.text(cx, pT + 36, 'G E O D E', {
+    // Title + diamond counter on the right
+    const titleTxt = this.add.text(cx - 16, pT + 36, 'G E O D E', {
       fontFamily: 'monospace', fontSize: '26px', fontStyle: 'bold', color: '#aa66ff',
       shadow: { offsetX: 0, offsetY: 0, color: '#7733cc', blur: 8, fill: true },
     }).setOrigin(0.5).setDepth(302).setAlpha(0);
     this.tweens.add({ targets: titleTxt, alpha: 1, duration: 180, delay: 50 });
     this.geodeObjs.push(titleTxt);
+
+    const dmTxt = this.add.text(pL + pw - 18, pT + 36, `◈ ${sessionDiamonds}`, {
+      fontFamily: 'monospace', fontSize: '11px', color: '#44ccff',
+    }).setOrigin(1, 0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: dmTxt, alpha: 1, duration: 180, delay: 50 });
+    this.geodeObjs.push(dmTxt);
 
     // Divider
     const divGfx = this.add.graphics().setDepth(302).setAlpha(0);
@@ -696,7 +807,7 @@ export class GameScene extends Phaser.Scene {
     this.geodeObjs.push(divGfx);
 
     // ── NOCLIP toggle row ──
-    const rowY = pT + 96;
+    const rowY = pT + 90;
 
     const noclipLbl = this.add.text(pL + 24, rowY - 8, 'NOCLIP', {
       fontFamily: 'monospace', fontSize: '14px', fontStyle: 'bold', color: '#cc99ff',
@@ -704,11 +815,11 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: noclipLbl, alpha: 1, duration: 180, delay: 80 });
     this.geodeObjs.push(noclipLbl);
 
-    const descTxt = this.add.text(pL + 24, rowY + 10, 'pass through obstacles', {
+    const ncDescTxt = this.add.text(pL + 24, rowY + 10, 'pass through obstacles', {
       fontFamily: 'monospace', fontSize: '9px', color: '#7755aa',
     }).setOrigin(0, 0.5).setDepth(302).setAlpha(0);
-    this.tweens.add({ targets: descTxt, alpha: 1, duration: 180, delay: 80 });
-    this.geodeObjs.push(descTxt);
+    this.tweens.add({ targets: ncDescTxt, alpha: 1, duration: 180, delay: 80 });
+    this.geodeObjs.push(ncDescTxt);
 
     const toggleW = 60, toggleH = 28;
     const toggleX = pL + pw - 24 - toggleW;
@@ -745,14 +856,50 @@ export class GameScene extends Phaser.Scene {
       this.noclip = !this.noclip;
       this.noclipTxt.setVisible(this.noclip);
       drawToggle();
-      // Brief flash on toggle
       this.tweens.add({ targets: toggleGfx, scaleX: 1.08, scaleY: 1.08, duration: 70, yoyo: true });
     });
     this.geodeObjs.push(toggleHit);
 
+    // ── Row separator ──
+    const sep2 = this.add.graphics().setDepth(302).setAlpha(0);
+    sep2.lineStyle(1, 0xaa66ff, 0.15);
+    sep2.beginPath(); sep2.moveTo(pL + 20, pT + 138); sep2.lineTo(pL + pw - 20, pT + 138); sep2.strokePath();
+    this.tweens.add({ targets: sep2, alpha: 1, duration: 180, delay: 95 });
+    this.geodeObjs.push(sep2);
+
+    // ── CUSTOM ICONS row ──
+    const iconRowY = pT + 158;
+    const unlocked = sessionDiamonds >= 25;
+
+    const iconLbl = this.add.text(pL + 24, iconRowY - 8, 'CUSTOM ICONS', {
+      fontFamily: 'monospace', fontSize: '13px', fontStyle: 'bold',
+      color: unlocked ? '#cc99ff' : '#554477',
+    }).setOrigin(0, 0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: iconLbl, alpha: 1, duration: 180, delay: 100 });
+    this.geodeObjs.push(iconLbl);
+
+    const iconDesc = this.add.text(pL + 24, iconRowY + 10,
+      unlocked ? (sessionIconMode === 'rocket' ? 'rocket active  →' : 'arrow active  →') : `◈ ${sessionDiamonds} / 25 to unlock`,
+      { fontFamily: 'monospace', fontSize: '9px', color: unlocked ? '#8855cc' : '#443366' },
+    ).setOrigin(0, 0.5).setDepth(302).setAlpha(0);
+    this.tweens.add({ targets: iconDesc, alpha: 1, duration: 180, delay: 100 });
+    this.geodeObjs.push(iconDesc);
+
+    if (unlocked) {
+      const arrowBtn = this.add.rectangle(pL + pw - 24 - 62, iconRowY, 60, 28, 0x000000, 0)
+        .setDepth(304).setInteractive({ useHandCursor: true });
+      arrowBtn.on('pointerdown', () => this.showCustomIconsUI());
+      this.geodeObjs.push(arrowBtn);
+      const openTxt = this.add.text(pL + pw - 24 - 62, iconRowY, 'CHOOSE ›', {
+        fontFamily: 'monospace', fontSize: '10px', color: '#aa66ff',
+      }).setOrigin(0.5).setDepth(303).setAlpha(0);
+      this.tweens.add({ targets: openTxt, alpha: 1, duration: 180, delay: 100 });
+      this.geodeObjs.push(openTxt);
+    }
+
     // ── Back button ──
     const backBW = 120, backBH = 34;
-    const backY = pT + ph - 30;
+    const backY = pT + ph - 24;
     const backGfx = this.add.graphics().setDepth(302).setAlpha(0);
     const drawBack = (hover: boolean): void => {
       backGfx.clear();
@@ -762,13 +909,13 @@ export class GameScene extends Phaser.Scene {
       backGfx.strokeRoundedRect(cx - backBW / 2, backY - backBH / 2, backBW, backBH, 8);
     };
     drawBack(false);
-    this.tweens.add({ targets: backGfx, alpha: 1, duration: 180, delay: 110 });
+    this.tweens.add({ targets: backGfx, alpha: 1, duration: 180, delay: 120 });
     this.geodeObjs.push(backGfx);
 
     const backTxt = this.add.text(cx, backY, '← BACK', {
       fontFamily: 'monospace', fontSize: '12px', color: '#aa66ff',
     }).setOrigin(0.5).setDepth(303).setAlpha(0);
-    this.tweens.add({ targets: backTxt, alpha: 1, duration: 180, delay: 110 });
+    this.tweens.add({ targets: backTxt, alpha: 1, duration: 180, delay: 120 });
     this.geodeObjs.push(backTxt);
 
     const backHit = this.add.rectangle(cx, backY, backBW, backBH, 0x000000, 0)
@@ -780,9 +927,167 @@ export class GameScene extends Phaser.Scene {
   }
 
   private closeGeode(): void {
+    if (this.customIconsOpen) this.closeCustomIcons();
     this.geodeOpen = false;
     for (const o of this.geodeObjs) o.destroy();
     this.geodeObjs = [];
+  }
+
+  // ── Custom Icons selector ─────────────────────────────────────────────────
+  private showCustomIconsUI(): void {
+    if (this.customIconsOpen) return;
+    this.customIconsOpen = true;
+
+    const cx = EW / 2, cy = EH / 2;
+    const pw = 280, ph = 218;
+    const pL = cx - pw / 2, pT = cy - ph / 2;
+
+    const dim = this.add.rectangle(cx, cy, EW, EH, 0x000000, 0.5).setDepth(400).setAlpha(0);
+    this.tweens.add({ targets: dim, alpha: 1, duration: 150 });
+    this.customIconsObjs.push(dim);
+
+    const panelGfx = this.add.graphics().setDepth(401).setAlpha(0);
+    panelGfx.fillStyle(0x04091a, 1);
+    panelGfx.fillRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(2.5, 0x44ccff, 1);
+    panelGfx.strokeRoundedRect(pL, pT, pw, ph, 14);
+    panelGfx.lineStyle(1, 0x44ccff, 0.2);
+    panelGfx.strokeRoundedRect(pL + 4, pT + 4, pw - 8, ph - 8, 11);
+    this.tweens.add({ targets: panelGfx, alpha: 1, duration: 150 });
+    this.customIconsObjs.push(panelGfx);
+
+    const titleTxt = this.add.text(cx, pT + 30, 'CUSTOM ICONS', {
+      fontFamily: 'monospace', fontSize: '15px', fontStyle: 'bold', color: '#44ccff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#226699', blur: 8, fill: true },
+    }).setOrigin(0.5).setDepth(402).setAlpha(0);
+    this.tweens.add({ targets: titleTxt, alpha: 1, duration: 150, delay: 40 });
+    this.customIconsObjs.push(titleTxt);
+
+    const subTxt = this.add.text(cx, pT + 50, 'pick your icon', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#336688',
+    }).setOrigin(0.5).setDepth(402).setAlpha(0);
+    this.tweens.add({ targets: subTxt, alpha: 1, duration: 150, delay: 40 });
+    this.customIconsObjs.push(subTxt);
+
+    const divGfx2 = this.add.graphics().setDepth(402).setAlpha(0);
+    divGfx2.lineStyle(1, 0x44ccff, 0.2);
+    divGfx2.beginPath(); divGfx2.moveTo(pL + 20, pT + 64); divGfx2.lineTo(pL + pw - 20, pT + 64); divGfx2.strokePath();
+    this.tweens.add({ targets: divGfx2, alpha: 1, duration: 150, delay: 40 });
+    this.customIconsObjs.push(divGfx2);
+
+    // Two icon buttons side-by-side
+    const btnSize = 76;
+    const arrowBtnX = cx - btnSize / 2 - 10;
+    const rocketBtnX = cx + btnSize / 2 + 10;
+    const btnY = pT + 118;
+
+    const makeIconBtn = (bx: number, mode: 'arrow' | 'rocket'): void => {
+      const isSelected = () => sessionIconMode === mode;
+      const btnGfx = this.add.graphics().setDepth(402).setAlpha(0);
+      this.tweens.add({ targets: btnGfx, alpha: 1, duration: 150, delay: 60 });
+      this.customIconsObjs.push(btnGfx);
+
+      const redraw = (hover: boolean): void => {
+        btnGfx.clear();
+        const sel = isSelected();
+        btnGfx.fillStyle(sel ? 0x0d1f38 : (hover ? 0x0a1830 : 0x070f1e), 1);
+        btnGfx.fillRoundedRect(bx - btnSize / 2, btnY - btnSize / 2, btnSize, btnSize, 10);
+        btnGfx.lineStyle(sel ? 2.5 : 1.5, sel ? 0x44ccff : (hover ? 0x336688 : 0x1a3355), 1);
+        btnGfx.strokeRoundedRect(bx - btnSize / 2, btnY - btnSize / 2, btnSize, btnSize, 10);
+
+        if (mode === 'arrow') {
+          // Mini arrow pointing right
+          btnGfx.fillStyle(0x00ee77, 1);
+          btnGfx.fillTriangle(bx + 18, btnY, bx - 2, btnY - 10, bx - 2, btnY + 10);
+          btnGfx.lineStyle(5, 0x00ee77, 1);
+          btnGfx.beginPath(); btnGfx.moveTo(bx - 20, btnY); btnGfx.lineTo(bx - 2, btnY); btnGfx.strokePath();
+          btnGfx.fillStyle(0x00cc55, 1);
+          btnGfx.fillTriangle(bx - 20, btnY - 4, btnY - 26, btnY, bx - 20, btnY + 4);
+        } else {
+          // Mini rocket pointing right
+          const mx = bx - 2;
+          btnGfx.fillStyle(0xccd4e0, 1);
+          btnGfx.fillRect(mx - 10, btnY - 5, 20, 10);
+          btnGfx.fillStyle(0xff2200, 1);
+          btnGfx.fillTriangle(mx + 10, btnY - 5, mx + 10, btnY + 5, mx + 20, btnY);
+          btnGfx.fillStyle(0xff5500, 1);
+          btnGfx.fillTriangle(mx - 10, btnY - 5, mx - 10, btnY - 13, mx - 18, btnY - 5);
+          btnGfx.fillTriangle(mx - 10, btnY + 5, mx - 10, btnY + 13, mx - 18, btnY + 5);
+          btnGfx.fillStyle(0xffcc00, 0.95);
+          btnGfx.fillTriangle(mx - 10, btnY - 3, mx - 10, btnY + 3, mx - 20, btnY);
+          btnGfx.fillStyle(0x55ddff, 0.9);
+          btnGfx.fillCircle(mx + 3, btnY, 3);
+        }
+        // Checkmark dot when selected
+        if (sel) {
+          btnGfx.fillStyle(0x44ccff, 1);
+          btnGfx.fillCircle(bx + btnSize / 2 - 9, btnY - btnSize / 2 + 9, 7);
+          btnGfx.fillStyle(0x04091a, 1);
+          btnGfx.fillTriangle(
+            bx + btnSize / 2 - 12, btnY - btnSize / 2 + 9,
+            bx + btnSize / 2 - 8,  btnY - btnSize / 2 + 13,
+            bx + btnSize / 2 - 5,  btnY - btnSize / 2 + 6,
+          );
+        }
+      };
+      redraw(false);
+
+      const lbl = this.add.text(bx, btnY + btnSize / 2 + 9, mode === 'arrow' ? 'ARROW' : 'ROCKET', {
+        fontFamily: 'monospace', fontSize: '9px',
+        color: isSelected() ? '#44ccff' : '#336688',
+      }).setOrigin(0.5).setDepth(403).setAlpha(0);
+      this.tweens.add({ targets: lbl, alpha: 1, duration: 150, delay: 60 });
+      this.customIconsObjs.push(lbl);
+
+      const hitArea = this.add.rectangle(bx, btnY, btnSize, btnSize, 0, 0)
+        .setDepth(404).setInteractive({ useHandCursor: true });
+      hitArea.on('pointerover', () => redraw(true));
+      hitArea.on('pointerout',  () => redraw(false));
+      hitArea.on('pointerdown', () => {
+        sessionIconMode = mode;
+        // Refresh panel to show updated selection
+        this.closeCustomIcons();
+        this.showCustomIconsUI();
+      });
+      this.customIconsObjs.push(hitArea);
+    };
+
+    makeIconBtn(arrowBtnX, 'arrow');
+    makeIconBtn(rocketBtnX, 'rocket');
+
+    // Back button
+    const backBW = 110, backBH = 30;
+    const backY2 = pT + ph - 22;
+    const backGfx2 = this.add.graphics().setDepth(402).setAlpha(0);
+    const drawBack2 = (hover: boolean): void => {
+      backGfx2.clear();
+      backGfx2.fillStyle(hover ? 0x1a2a44 : 0x08101e, 1);
+      backGfx2.fillRoundedRect(cx - backBW / 2, backY2 - backBH / 2, backBW, backBH, 7);
+      backGfx2.lineStyle(1.5, 0x44ccff, hover ? 0.8 : 0.35);
+      backGfx2.strokeRoundedRect(cx - backBW / 2, backY2 - backBH / 2, backBW, backBH, 7);
+    };
+    drawBack2(false);
+    this.tweens.add({ targets: backGfx2, alpha: 1, duration: 150, delay: 80 });
+    this.customIconsObjs.push(backGfx2);
+
+    const backTxt2 = this.add.text(cx, backY2, '← BACK', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#44ccff',
+    }).setOrigin(0.5).setDepth(403).setAlpha(0);
+    this.tweens.add({ targets: backTxt2, alpha: 1, duration: 150, delay: 80 });
+    this.customIconsObjs.push(backTxt2);
+
+    const backHit2 = this.add.rectangle(cx, backY2, backBW, backBH, 0, 0)
+      .setDepth(404).setInteractive({ useHandCursor: true });
+    backHit2.on('pointerover', () => drawBack2(true));
+    backHit2.on('pointerout',  () => drawBack2(false));
+    backHit2.on('pointerdown', () => this.closeCustomIcons());
+    this.customIconsObjs.push(backHit2);
+  }
+
+  private closeCustomIcons(): void {
+    this.customIconsOpen = false;
+    for (const o of this.customIconsObjs) o.destroy();
+    this.customIconsObjs = [];
   }
 
   // ── Update ─────────────────────────────────────────────────────────────────
@@ -790,7 +1095,8 @@ export class GameScene extends Phaser.Scene {
     // ESC or P: close GEODE if open, otherwise toggle pause
     const pausePressed = (Phaser.Input.Keyboard.JustDown(this.escKey) || Phaser.Input.Keyboard.JustDown(this.pKey)) && !this.dead;
     if (pausePressed) {
-      if (this.geodeOpen) { this.closeGeode(); }
+      if (this.customIconsOpen) { this.closeCustomIcons(); }
+      else if (this.geodeOpen) { this.closeGeode(); }
       else { this.togglePause(); }
       return;
     }
@@ -811,8 +1117,8 @@ export class GameScene extends Phaser.Scene {
     this.goingUp = this.space.isDown;
     this.arrowY += (this.goingUp ? -1 : 1) * VSPEED * dt;
 
-    // Ceiling & floor — hard boundary; arrow (including glow halo) stays inside the rails
-    this.arrowY = Phaser.Math.Clamp(this.arrowY, 32, EH - 32);
+    // Ceiling & floor — hard boundary; arrow glow halo stays inside the rails
+    this.arrowY = Phaser.Math.Clamp(this.arrowY, 40, EH - 40);
 
     this.syncObs();
     if (!this.noclip && this.checkHits()) { this.die(); return; }
