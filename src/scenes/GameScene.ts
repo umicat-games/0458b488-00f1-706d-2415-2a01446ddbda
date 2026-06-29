@@ -174,8 +174,8 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < NUM_OBS; i++) {
       const wx     = 820 + i * wallSpacing;
       const gapCY  = Math.round(H * gapFracs[i]);
-      const gapTop = Math.max(12, gapCY - GAP_H / 2);
-      const gapBot = Math.min(H - 12, gapTop + GAP_H);
+      const gapTop = Math.max(32, gapCY - GAP_H / 2);
+      const gapBot = Math.min(H - 32, gapTop + GAP_H);
 
       // Top block (above the gap)
       if (gapTop > 12) {
@@ -811,8 +811,8 @@ export class GameScene extends Phaser.Scene {
     this.goingUp = this.space.isDown;
     this.arrowY += (this.goingUp ? -1 : 1) * VSPEED * dt;
 
-    // Ceiling & floor — clamp rather than kill; only obstacles end the run
-    this.arrowY = Phaser.Math.Clamp(this.arrowY, 10, EH - 10);
+    // Ceiling & floor — hard boundary; arrow (including glow halo) stays inside the rails
+    this.arrowY = Phaser.Math.Clamp(this.arrowY, 32, EH - 32);
 
     this.syncObs();
     if (!this.noclip && this.checkHits()) { this.die(); return; }

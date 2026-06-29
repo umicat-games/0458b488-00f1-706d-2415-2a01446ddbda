@@ -10,7 +10,7 @@ Geometry Dash–style dodge game. Hold SPACE to fly up at exactly 45°, release 
 - **Spike Obstacles**: Cyan/teal triangular spikes between every wall pair (1 cluster per gap). Placed near floor when path rises, near ceiling when path falls — punish wrong-height flying without blocking the intended route.
 - **Pixel-art Mountains**: Two parallax layers drawn with 10px block silhouettes. Far layer (dark purple, 0.12× parallax), near layer (dark navy, 0.28× parallax). Drawn 3× wide for seamless looping via Graphics setX().
 - **Stars**: 60 seeded pixel-art square stars scattered across the sky.
-- **Collision**: AABB hit test using per-obstacle `hw` (half-width). Ceiling/floor clamp the arrow (never kill) — only obstacles end the run.
+- **Collision**: AABB hit test using per-obstacle `hw` (half-width). Ceiling/floor clamp the arrow at y=32 / EH-32 (never kill) — keeps glow halo fully inside the rails. Only obstacles end the run.
 - **Death screen**: fades in with panel; shows `% COMPLETED` at the top, status text, and a RESTART button. Clicking or pressing SPACE restarts. Win state shows "LEVEL COMPLETE!".
 - **Speed**: SCROLL = 428 px/s, VSPEED = 428 px/s (exact 45° diagonal).
 - **Level length**: LEVEL_L ≈ 21,220 world-px (820 + 34×580 + 600) with 35 wall columns + ~40 spike clusters.
